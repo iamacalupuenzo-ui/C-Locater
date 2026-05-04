@@ -18,6 +18,21 @@ function BoundsUpdater({ points }: { points?: [number, number][] }) {
   return null;
 }
 
+function FlyToUpdater() {
+  const map = useMap();
+  useEffect(() => {
+    const handleFlyTo = (e: any) => {
+      const position = e.detail;
+      if (position) {
+        map.flyTo(position, 17, { animate: true, duration: 1.2 });
+      }
+    };
+    window.addEventListener('flyToVehicle', handleFlyTo);
+    return () => window.removeEventListener('flyToVehicle', handleFlyTo);
+  }, [map]);
+  return null;
+}
+
 const createCustomIcon = (vehicle: typeof FLEET_DATA[0]) => {
   const getStatusAppleColor = (status: string) => {
     switch (status) {
@@ -99,6 +114,7 @@ export function FleetMap({
         style={{ background: '#f5f5f5', cursor: isDrawingMode ? 'crosshair' : 'grab' }}
       >
         <BoundsUpdater points={drawingPoints?.length ? drawingPoints : selectedRoute?.coordinates} />
+        <FlyToUpdater />
         <MapEvents onMapClick={onMapClick} isDrawingMode={isDrawingMode} />
         <TileLayer
            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

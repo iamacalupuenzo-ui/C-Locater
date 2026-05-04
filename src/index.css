@@ -4,6 +4,28 @@
 
 @theme {
   --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand */
+  --color-brand: #0052CC;
+  --color-brand-hover: #0047B3;
+  --color-brand-light: oklch(from #0052CC l c h / 0.10);
+  --color-brand-ring: oklch(from #0052CC l c h / 0.10);
+
+  /* Semantic Status (Apple-inspired) */
+  --color-status-active: #34C759;
+  --color-status-stopped: #FF3B30;
+  --color-status-offline: #8E8E93;
+
+  /* Surfaces */
+  --color-surface: #F5F5F7;
+  --color-surface-raised: #FFFFFF;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
 }
 
 body {
