@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\emacalupu\\\\Documents\\\\Proyectos\\\\CLocater\\\\C-Locater\\\\src\" -Recurse -Name)",
+      "Bash(Sort-Object)",
+      "PowerShell(cd \"C:\\\\Users\\\\emacalupu\\\\Documents\\\\Proyectos\\\\CLocater\\\\C-Locater\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"c-loc.components.Sidebar\" -and $_ -notmatch \"img.\\(logo|clo\\)\" })",
+      "Bash(npx tsc *)",
+      "Bash(grep -v \"c-loc\\\\\\\\\\\\\\\\components\\\\\\\\|img\\\\\\\\|Sidebar\")",
+      "Bash(del *)"
+    ]
+  }
+}

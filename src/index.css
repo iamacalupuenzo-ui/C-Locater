@@ -1,9 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700&display=swap');
 @import "tailwindcss";
 @import "leaflet/dist/leaflet.css";
 
 @theme {
-  --font-sans: "Roboto", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
   /* Brand */
   --color-brand: #0052CC;
@@ -11,7 +11,7 @@
   --color-brand-light: oklch(from #0052CC l c h / 0.10);
   --color-brand-ring: oklch(from #0052CC l c h / 0.10);
 
-  /* Semantic Status (Apple-inspired) */
+  /* Semantic Status */
   --color-status-active: #34C759;
   --color-status-stopped: #FF3B30;
   --color-status-offline: #8E8E93;
@@ -20,18 +20,18 @@
   --color-surface: #F5F5F7;
   --color-surface-raised: #FFFFFF;
 
-  /* Radius */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 18px;
-  --radius-xl: 20px;
+  /* Radius — sistema consistente */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --radius-full: 9999px;
 }
 
 body {
   margin: 0;
   padding: 0;
-  overflow: hidden; /* Prevent scrolling on the body */
+  overflow: hidden;
 }
 
 /* Scrollbar Hide Utils */
@@ -39,10 +39,9 @@ body {
   display: none;
 }
 .scrollbar-hide {
-  -ms-overflow-style: none; /* IE and Edge */
-  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
-
 
 /* Custom Marker Adjustments */
 .custom-fleet-marker {
@@ -50,7 +49,23 @@ body {
   border: none;
 }
 
-/* Adjust Leaflet Controls to match Samsung style */
+@keyframes markerExpand {
+  from {
+    opacity: 0;
+    transform: scaleY(0.88) translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1) translateY(0);
+  }
+}
+
+.marker-card-anim {
+  animation: markerExpand 0.2s cubic-bezier(0.34, 1.3, 0.64, 1);
+  transform-origin: bottom center;
+}
+
+/* Leaflet Controls */
 .leaflet-bar {
   border: none !important;
   box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
@@ -79,3 +94,4 @@ body {
 .leaflet-control-zoom-in {
   border-bottom: 1px solid #f3f4f6 !important;
 }
+

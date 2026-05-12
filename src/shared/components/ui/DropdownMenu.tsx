@@ -13,7 +13,7 @@ export interface MenuItem {
 
 interface DropdownMenuProps {
   items: MenuItem[];
-  children: (props: { open: () => void; ref: RefObject<HTMLButtonElement | null> }) => ReactNode;
+  children: (props: { open: () => void; isOpen: boolean; ref: RefObject<HTMLButtonElement | null> }) => ReactNode;
 }
 
 export function DropdownMenu({ items, children }: DropdownMenuProps) {
@@ -31,6 +31,15 @@ export function DropdownMenu({ items, children }: DropdownMenuProps) {
 
   const close = useCallback(() => setPos(null), []);
 
+  // Evita que el mousedown del trigger llegue al handler de "click fuera"
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+    const stopProp = (e: MouseEvent) => e.stopPropagation();
+    trigger.addEventListener('mousedown', stopProp);
+    return () => trigger.removeEventListener('mousedown', stopProp);
+  }, []);
+
   // Cierra con click fuera o scroll
   useEffect(() => {
     if (!pos) return;
@@ -47,13 +56,13 @@ export function DropdownMenu({ items, children }: DropdownMenuProps) {
 
   return (
     <>
-      {children({ open: () => (isOpen ? close() : open()), ref: triggerRef })}
+      {children({ open: () => (isOpen ? close() : open()), isOpen, ref: triggerRef })}
 
       {isOpen && createPortal(
         <div
           onMouseDown={e => e.stopPropagation()}
           style={{ top: pos.top, left: pos.left }}
-          className="fixed z-[9999] w-44 bg-white border border-gray-100 rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.10)] py-1 overflow-hidden"
+          className="fixed z-[9999] w-44 bg-white border border-gray-100 rounded-xl shadow-[0_4px_16px_rgba(0,0,0,0.08)] py-1 overflow-hidden"
         >
           {items.map((item, i) => {
             const Icon = item.icon;
@@ -63,10 +72,10 @@ export function DropdownMenu({ items, children }: DropdownMenuProps) {
                 <button
                   onClick={() => { item.onClick?.(); close(); }}
                   className={cn(
-                    'w-full px-3.5 py-2 text-left text-sm flex items-center gap-2.5 transition-colors',
+                    'w-full px-3.5 py-2 text-left text-[13px] font-medium flex items-center gap-2.5 transition-colors',
                     item.danger
-                      ? 'text-red-600 hover:bg-red-50'
-                      : 'text-gray-700 hover:bg-gray-50'
+                      ? 'text-red-500 hover:bg-red-50 hover:text-red-600'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                   )}
                 >
                   <Icon className={cn('w-3.5 h-3.5 shrink-0', item.danger ? 'text-red-400' : 'text-gray-400')} />

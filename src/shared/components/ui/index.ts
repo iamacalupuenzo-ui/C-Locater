@@ -18,3 +18,6 @@ export type { SegmentOption } from './SegmentedControl';
 export { Select } from './Select';
 export type { SelectOption } from './Select';
 export { Textarea } from './Textarea';
+export { Toast } from './Toast';
+export { UserMenu } from './UserMenu';
+export type { UserMenuUser, AppProfile } from './UserMenu';

@@ -1,36 +1,54 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import { useState } from 'react';
-import { Sidebar } from './components/Sidebar';
-import { Header } from './components/Header';
-import { FloatingStats } from './components/FloatingStats';
-import { FleetMap } from './components/FleetMap';
-import { CaminosModule } from './components/CaminosModule';
+import { HeaderCGo } from './c-go/components/Header';
+import { Sidebar } from './c-go/components/Sidebar';
+import { HeaderCLoc } from './c-loc/components/Header';
+import { SidebarCLoc } from './c-loc/components/Sidebar';
+import { FleetMap } from './shared/components/FleetMap';
+import { FloatingStats } from './shared/components/FloatingStats';
+import { CaminosModule } from './shared/components/CaminosModule';
+import type { AppProfile } from './shared/components/ui/UserMenu';
+import type { UserRole } from './shared/lib/utils';
 
 export default function App() {
   const [activeView, setActiveView] = useState('explore');
+  const [profile, setProfile] = useState<AppProfile>('c-go');
+  const [userRole, setUserRole] = useState<UserRole>('admin');
+
+  if (profile === 'c-loc') {
+    return (
+      <div className="flex w-full h-screen bg-[#F5F5F7] overflow-hidden font-sans">
+        <SidebarCLoc activeView={activeView} onViewChange={setActiveView} />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <HeaderCLoc onProfileChange={setProfile} userRole={userRole} onRoleChange={setUserRole} />
+          <main className="flex-1 relative w-full min-w-0 overflow-hidden">
+            {activeView === 'explore' && (
+              <>
+                <FleetMap />
+                <FloatingStats profile={profile} userRole={userRole} />
+              </>
+            )}
+            {activeView === 'caminos' && <CaminosModule />}
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col w-full h-screen bg-[#F5F5F7] overflow-hidden font-sans">
-      <Header />
-      <div className="flex flex-1 relative overflow-hidden">
+      <HeaderCGo onProfileChange={setProfile} userRole={userRole} onRoleChange={setUserRole} />
+      <div className="flex flex-1 overflow-hidden">
         <Sidebar activeView={activeView} onViewChange={setActiveView} />
-        <main className="flex-1 relative w-full h-full min-w-0">
+        <main className="flex-1 relative w-full min-w-0 overflow-hidden">
           {activeView === 'explore' && (
             <>
               <FleetMap />
-              <FloatingStats />
+              <FloatingStats profile={profile} userRole={userRole} />
             </>
           )}
-          {activeView === 'caminos' && (
-            <CaminosModule />
-          )}
+          {activeView === 'caminos' && <CaminosModule />}
         </main>
       </div>
     </div>
   );
 }
-
