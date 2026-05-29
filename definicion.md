@@ -1,7 +1,7 @@
 # Definición de Producto — CLocater
 
 > Decisiones de UX, roles, perfiles y visibilidad de datos.
-> Actualizado: 2026-05-09 (Sesión 5)
+> Actualizado: 2026-05-14 (Sesión 7 — rev final)
 
 ---
 
@@ -22,13 +22,15 @@ La app tiene **2 perfiles** que determinan el layout y el tipo de herramienta:
 
 ## 2. Roles de Usuario
 
-La app tiene **3 roles de sistema** que determinan qué datos y acciones ve cada usuario:
+La app tiene **5 roles de sistema** que determinan qué datos y acciones ve cada usuario:
 
 | Rol (etiqueta UI) | ID interno | Descripción |
 |-------------------|------------|-------------|
 | **Administrador** | `admin` | Visión operativa y de gestión. Ve métricas de negocio y alertas |
+| **ESAD** | `esad` | Operador de Central de Monitoreo. Card compacta especializada, sin Zona 3, acciones en menú ⋮ |
 | **Concesionaria** | `operator` | Visión técnica completa. Ve telemetría del vehículo |
 | **Cliente Directo** | `client` | Visión reducida. Ve solo lo necesario para su operación |
+| **Desarrollador** | `developer` | Acceso interno para testing — mismo acceso que admin |
 
 > **Nota de nomenclatura (Sesión 4):** Las etiquetas visibles en la UI se alinearon con la terminología del negocio (Administrador / Concesionaria / Cliente Directo). Los IDs internos (`admin` / `operator` / `client`) se mantienen sin cambio para no afectar condicionales ni lógica de componentes. El mapeo se documenta en esta tabla.
 
@@ -154,24 +156,26 @@ Los dispositivos se identifican por su **nivel de servicio**, no por modelo de h
 | Plan | Color | Clase |
 |------|-------|-------|
 | Dispositivo índice 0 (Principal) | Azul brand | `text-brand` |
-| SVR Básico / SVR Plus / SVR X (resto) | Negro | `text-slate-800` |
-| SVR Contingencia | Violeta | `text-violet-500` |
+| Todos los demás (Secundario) | Negro | `text-slate-800` |
 
-**Decisión de UX — violeta para SVR Contingencia:** Elegido sobre naranja (reservado para alarmas) y cian (cercano al brand). El color aplica al nombre del plan; los badges de jerarquía e ignición tienen su propio estilo.
-
-**Arquitectura de información de la tarjeta de dispositivo (Sesión 5):**
+**Arquitectura de información de la tarjeta de dispositivo (Sesión 7 — final):**
 
 Cada tarjeta de dispositivo GPS en el popover sigue este orden de información:
 
 | Fila | Contenido | Visibilidad |
 |------|-----------|-------------|
-| 1 | Nombre del plan (`SVR Plus`) + badge estado de señal (`● Transmitiendo / Sin señal / …`) | Todos los roles |
+| 1 | Nombre del plan (`SVR Plus`) + jerarquía inline (`Principal` / `Secundario`) | Todos los roles |
 | 2 | Fecha y hora del último reporte | `admin` / `esad` con segundos · `operator` sin segundos |
-| 3 | Badge jerarquía (`Principal` / `Secundario` / `Respaldo`) + badge ignición `[⏻ ON/OFF]` | Jerarquía: todos · Ignición: solo `esad` |
+| 3 | Badge señal (`LocateFixed` + label) + badge ignición `[⏻ ON/OFF]` | Señal: todos · Ignición: solo `esad` |
 | 4 | IMEI + LÍNEA en dos columnas | IMEI: todos · LÍNEA: solo `esad` |
 
-**Decisión de UX — estado de señal al lado del nombre (Sesión 5):**
-El badge de señal (Transmitiendo / Sin señal / Señal baja) va inmediatamente al lado del nombre del plan porque es el indicador más crítico para un operador de Central: saber si el GPS está vivo sin leer más abajo. La jerarquía (Principal/Secundario) e ignición son contexto secundario y van en la fila 3.
+**Decisión de UX — jerarquía como sufijo inline (Sesión 7):**
+No se usan pills ni badges para la jerarquía. El nombre del plan va en bold y a su derecha, en texto más pequeño y tenue, la jerarquía. Esto mantiene la fila 1 limpia con solo dos elementos (identidad + contexto). Se evaluó poner señal en fila 1 junto al nombre pero se descartó porque agrupaba demasiada información en una sola línea.
+
+Solo existen dos jerarquías: Principal (índice 0) y Secundario (índice ≥1). El badge "Respaldo" fue eliminado — no existe GPS de respaldo, solo principal y secundarios.
+
+**Badge de señal (fila 3) — ícono `LocateFixed` (Sesión 7):**
+El dot circular fue reemplazado por el ícono `LocateFixed` (`w-3.5 h-3.5`) dentro del badge de señal. Mismo ícono que aparece en el indicador GPS de la tarjeta del vehículo — entrena al usuario a asociar el símbolo con el estado de conectividad GPS. Cuando el GPS está en `reporting`, el fondo del ícono hace `animate-ping`.
 
 **Color ignición (Sesión 5):** ON → `text-emerald-600 bg-emerald-50` (verde, coherente con "Transmitiendo"). OFF → `text-slate-400 bg-slate-100` (gris neutro).
 
@@ -181,8 +185,6 @@ El badge de señal (Transmitiendo / Sin señal / Señal baja) va inmediatamente 
 - Hover: color brand + subrayado + ícono `Copy`
 - LÍNEA con `whitespace-nowrap` para que el número no se parta
 
-**Ícono `LocateFixed` eliminado (Sesión 5):** Removido de las tarjetas de dispositivo para ganar espacio horizontal. La jerarquía visual la dan el nombre en negrita y los badges.
-
 Los identificadores (IMEI / LÍNEA) se muestran en la fila 4 de la tarjeta, en layout de dos columnas. En hover cambian a color brand, aparece subrayado y el ícono de copia; al hacer click copian al portapapeles con tooltip "Copiado ✓". LÍNEA usa `whitespace-nowrap` para evitar que el número se parta.
 
 **Casuística clave — Conflicto de reporte y encendido:**
@@ -191,12 +193,12 @@ Un GPS puede estar `reporting` (transmitiendo activamente) mientras el motor del
 
 Ejemplo real (ANA / MOT-101):
 
-| | GPS Principal (falla) | GPS Respaldo (reportando) |
-|-|----------------------|---------------------------|
+| | GPS Principal (falla) | GPS Secundario (reportando) |
+|-|----------------------|-----------------------------|
 | Tipo | SVR Plus · IMEI | SVR Contingencia · Línea |
 | Estado reporte | 🔘 Inactivo | 🟢 Reportando |
 | Ignición vehículo | OFF | OFF |
-| Último reporte | 02/05/2026 10:00 AM | 05/05/2026 05:15 PM |
+| Último reporte | 02/05/2026 10:00 | 05/05/2026 17:15 |
 | Velocidad | 0 km/h | 0 km/h |
 
 El operador ve que el GPS Secundario reporta hoy con ignición OFF → la posición es confiable y el vehículo está realmente apagado. El GPS Principal tiene fecha antigua → dato obsoleto.
@@ -222,13 +224,14 @@ Los vehículos con `gpsCount > 1` tienen un array `gpsDevices[]`. La identidad d
 
 **Display en `GpsPopover` — fila de badges por dispositivo:**
 
-| Posición / Tipo | Badge jerarquía | Estilo |
-|-----------------|----------------|--------|
-| Índice 0 (cualquier tipo) | `Principal` | Azul brand, texto blanco |
-| Índice ≥1, tipo ≠ contingencia | `Secundario` | Gris slate, borde |
-| Índice ≥1, tipo = contingencia | `Respaldo` | Gris slate, borde |
+**Jerarquía como sufijo inline (Sesión 7):** No se usan pills/badges. El nombre del plan va en bold y a su derecha, en texto más pequeño y tenue, la jerarquía:
 
-**Distinción Secundario vs Respaldo:** "Secundario" indica un segundo servicio contratado que el usuario final debe visualizar (ej. SVR Básico + SVR Plus en la misma unidad). "Respaldo" indica un dispositivo de emergencia que no forma parte del contrato principal — no es un segundo servicio contratado. Esta distinción también aplica a la visibilidad hacia terceros (operadores, financieras, aseguradoras): datos de un "Secundario" son compartibles como segundo servicio; datos de un "Respaldo" son operativos internos.
+| Posición | Texto jerarquía | Color |
+|----------|----------------|-------|
+| Índice 0 | `Principal` | `text-brand/70` (azul tenue) |
+| Índice ≥1 | `Secundario` | `text-slate-400` (gris) |
+
+Ambos en `text-[10px] font-semibold`, alineados a la baseline del nombre del plan.
 
 | Badge | Reporting | Inactivo |
 |-------|-----------|---------|
@@ -261,19 +264,19 @@ Ignición vehículo: OFF
 
 ### 3.3 Acciones del acordeón (Zona 3)
 
-Barra horizontal con 4 acciones. La cuarta varía según rol:
+Barra horizontal con 4 acciones. **No visible para `esad`** — sus acciones están en el menú ⋮ de la card.
 
-| Acción | Ícono | `admin` | `operator` | `client` |
-|--------|-------|:-------:|:----------:|:--------:|
-| Ubicación | `MapPin` | ✅ | ✅ | ✅ |
-| Viajes | `Route` | ✅ | ✅ | ✅ |
-| Parqueo | `Lock` | ✅ | ❌ | ✅ |
-| Detalle del vehículo | `FileText` | ❌ | ✅ | ❌ |
-| Conducción | `Navigation` | ❌ | ✅ | ❌ |
-| Comando | `Zap` | ✅ | ❌ | ❌ |
-| **Bloquear encendido** | `Power` | ❌ | ❌ | ✅ |
+| Acción | Ícono | `admin` | `esad` | `operator` | `client` |
+|--------|-------|:-------:|:------:|:----------:|:--------:|
+| Ubicación | `MapPin` | ✅ | ⋮ menú | ✅ | ✅ |
+| Viajes | `Route` | ✅ | ⋮ menú | ✅ | ✅ |
+| Parqueo | `Lock` | ✅ | ⋮ menú | ❌ | ✅ |
+| Detalle del vehículo | `FileText` | ❌ | ❌ | ✅ | ❌ |
+| Conducción | `Navigation` | ❌ | ❌ | ✅ | ❌ |
+| Comando | `Zap` | ✅ | ⋮ menú | ❌ | ❌ |
+| **Bloquear encendido** | `Power` | ❌ | ❌ | ❌ | ✅ |
 
-Las 4 posiciones siempre están ocupadas. Posiciones 1–2 fijas (Ubicación, Viajes). Posiciones 3–4 varían por rol:
+Las 4 posiciones siempre están ocupadas (para roles que muestran Zona 3). Posiciones 1–2 fijas (Ubicación, Viajes). Posiciones 3–4 varían por rol:
 
 | Rol | Posición 3 | Posición 4 |
 |-----|-----------|-----------|
@@ -281,13 +284,13 @@ Las 4 posiciones siempre están ocupadas. Posiciones 1–2 fijas (Ubicación, Vi
 | `operator` | Detalle del vehículo | Conducción |
 | `client` | Parqueo | Bloquear encendido |
 
+**Decisión de UX — esad:** La Zona 3 se oculta. En su lugar, el botón `Share2` de la esquina superior derecha de la card se reemplaza por un menú ⋮ (`MoreVertical`) que contiene: Ubicación, Viajes, Parqueo, Comando. El menú es un popover portal con glassmorphism, alineado a la derecha del botón disparador.
+
 **Decisión de UX — operator:** No tiene acceso a Parqueo ni Comando (acciones de bloqueo/control reservadas para admin y emergencias de cliente). En cambio accede a información de detalle y conducción, que es la vista que necesita para su trabajo de monitoreo.
 
 **Decisión de UX — client:** No tiene acceso a Comando genérico. Tiene "Bloquear encendido" como acción de seguridad directa. Hover rojo en ambas acciones de bloqueo (Parqueo y Bloquear) para comunicar que son acciones críticas.
 
-**Implementación:** Condicionales en `VehicleAccordionItem` — solo aplica a C-Go. Íconos `FileText` y `Navigation` agregados a imports.
-
-**Nota futura — GPS popover:** Si se habilita el panel GPS para `client`, la misma lógica aplica en el menú ⋮. El flag `isOperatorCGo` en `GpsActionMenu` deberá extenderse para `client`.
+**Implementación:** Condicionales en `VehicleAccordionItem`. Componente `EsadActionMenu` definido en el mismo archivo — popover portal animado con `motion/react`. El menú se cierra al colapsar la card o al clickear fuera.
 
 ### 3.4 Flujo de compartir ubicación
 
@@ -337,27 +340,47 @@ Las tarjetas flotantes sobre el mapa (Distancia total, Viajes realizados, Tiempo
 
 ### 3.5 Vista colapsada del vehículo en el acordeón
 
-La segunda línea del acordeón colapsado varía según el rol:
+La identidad y segunda línea varían según el rol:
 
-| Rol | Segunda línea | Ejemplo |
-|-----|--------------|---------|
-| `admin` | Placa · fecha y hora corta (sin año) | `MOT-101 · Jue 13 mar · 10:08 PM` |
-| `operator` / `client` | Placa · velocidad actual | `MOT-101 · 45 km/h` |
+| Rol | Línea 1 | Línea 2 (colapsado) |
+|-----|---------|---------------------|
+| `esad` | Placa sin guiones (14px bold) + engineCode al lado (10px gris) | Fecha larga con segundos · `Jue 5 may 2026 • 09:14:31` (`text-slate-500`) |
+| `admin` | Placa sin guiones | Código de motor + fecha mini con segundos |
+| `operator` / `client` | Alias (editable) | Placa sin guiones · velocidad actual |
+
+**Regla esad — sin placa:** Si `vehicle.plate` está vacío, se muestran los primeros **6 caracteres** del `engineCode` como identificador primario (en el lugar de la placa). El `engineCode` completo sigue apareciendo al lado como dato secundario. Esta regla garantiza un estándar visual fijo — misma posición y tamaño independientemente de si el vehículo tiene placa o no.
+
+Ejemplo: `plate: ''`, `engineCode: 'D4D250A8F3'` → línea 1: `D4D250` (bold 14px) · `D4D250A8F3` (gris 10px)
+
+**Layout línea 1 esad:**
+- `flex items-baseline gap-1.5 min-w-0`
+- Primario: `text-[14px] font-bold text-slate-900 tracking-tight leading-none shrink-0`
+- Secundario: `text-[10px] font-medium text-slate-400 leading-none truncate`
+
+**Layout línea 2 esad:**
+- `gap-1.5` (6px) entre línea 1 y línea 2 — siempre visible, no solo al expandir
+- Formato: `formatLastSeenWithSecs()` → `Jue 5 may 2026 • 09:14:31`
+- Color: `text-slate-500` (mismo tono que la fecha en estado expandido para coherencia visual)
+
+**Ignition badge:** Oculto para `esad`. El esad identifica el estado del motor por el color del ícono y el dot de ignición en la tarjeta — el badge redundaría. Para otros roles sigue visible al expandir.
 
 **Decisión de UX para `admin`:** El administrador necesita ver de inmediato cuándo fue el último reporte del vehículo (dato crítico para emergencias) sin tener que abrir el detalle.
 
-Layout de la segunda línea en colapsado:
+Layout de la segunda línea en colapsado (admin):
 - Placa anclada a la izquierda (`shrink-0`) — siempre visible, nunca truncada
 - Fecha alineada a la derecha con `justify-between` — trunca solo si el espacio es insuficiente
 - Sin separador `·` entre placa y fecha (el `justify-between` los separa visualmente)
 
-Formato de fecha: `DD mes · H:MM AM/PM` — sin año ni día de semana para máxima compacidad.
-Ejemplos: `13 mar · 10:08 PM`, `5 may · 9:14 AM`
+**Formato de hora — todos los roles:** 24 horas, sin AM/PM. Función `parseParts()` en `utils.ts` convierte el formato de entrada `'05/05/2026 09:14 a.m.'` a `h24Str` con cero de relleno. Todas las funciones de formateo usan `h24Str`.
+
+Ejemplos: `13 mar · 22:08` (antes era `10:08 PM`), `5 may · 09:14` (antes era `9:14 AM`)
 
 Funciones de formateo en `shared/lib/utils.ts`:
-- `formatLastSeenMini()` → `13 mar · 10:08 PM` (colapsado admin)
-- `formatLastSeenShort()` → `Jue 13 mar · 10:08 PM` (disponible, sin uso activo)
-- `formatLastSeen()` → `Jue 13 mar 2026 • 9:14 AM` (card expandida en el mapa)
+- `formatLastSeenMini()` → `13 mar · 22:08` (colapsado admin)
+- `formatLastSeenMiniSecs()` → `5 may · 09:14:31` (colapsado esad línea 2, con segundos)
+- `formatLastSeenShort()` → `Jue 13 mar · 22:08` (disponible, sin uso activo)
+- `formatLastSeen()` → `Jue 13 mar 2026 • 22:08` (card expandida en el mapa)
+- `formatLastSeenWithSecs()` → `Jue 5 may 2026 • 09:14:31` (esad línea 2 y GpsPopover admin/esad)
 
 ---
 
@@ -400,7 +423,27 @@ El badge de estado principal (visible en el acordeón expandido) muestra texto d
 
 ---
 
-## 7. Batería — Representación Visual por Color
+## 7. Color del Ícono de Vehículo — Estado GPS Principal
+
+El ícono del vehículo en la tarjeta cambia de color según el estado de reporte del **GPS principal** (primer dispositivo en `gpsDevices`). Este color es **independiente de la ignición** — un vehículo puede tener Ignition ON y GPS en rojo si el dispositivo dejó de transmitir.
+
+| Estado GPS principal | Color ícono | Fondo | Cuándo ocurre |
+|----------------------|-------------|-------|----------------|
+| `reporting`    | Verde `text-emerald-600` | `bg-emerald-50` | GPS transmitiendo correctamente |
+| `low-signal`   | Naranja `text-orange-500` | `bg-orange-50` | Señal débil — alerta temprana |
+| `no-signal`    | Gris `text-slate-400`    | `bg-slate-50`  | Sin señal — dejó de reportar recientemente |
+| `disconnected` | Rojo `text-red-500`      | `bg-red-50`    | Sin reporte por tiempo extendido |
+| Sin GPS        | Gris `text-slate-400`    | `bg-slate-50`  | Vehículo sin `gpsDevices` o estado desconocido |
+
+**Distinción `no-signal` vs `low-signal`:** `no-signal` es gris (igual que sin GPS) porque el dispositivo ya no está reportando nada — para el usuario es "como si no existiera en este momento". `low-signal` es naranja porque el dispositivo sigue activo pero con degradación — requiere atención. Esta distinción fue corregida en Sesión 7 (inicialmente ambos eran naranja).
+
+**Indicador GPS para esad (Sesión 7):** El rol `esad` no ve el `GpsBadgeTooltip` (badge contador de GPS sobre el ícono). En cambio, muestra un dot de color `solid` del estado GPS con el ícono `LocateFixed` en blanco, posicionado en `-top-2 -left-2` sobre el ícono del vehículo. Cuando el GPS está en `reporting`, el dot tiene animación `animate-ping` (efecto de señal activa). Para estados sin señal, el dot es estático.
+
+**Implementación:** `getVehicleGpsStyle(vehicle)` en `fleetUtils.ts` — retorna `{ bg, border, icon, solid, ping, isReporting }`. En `VehicleAccordionItem`: esad → dot con `LocateFixed`; otros roles → `GpsBadgeTooltip`. El dot de esad usa `gpsStyle.solid` (color de fondo) y `gpsStyle.ping` (color del ring pulsante).
+
+---
+
+## 8. Batería — Representación Visual por Color
 
 La batería se representa con colores en **todas las plataformas y roles**, tanto en el acordeón de vehículos como en la vista expandida de dispositivos GPS.
 
@@ -416,7 +459,32 @@ El color aplica tanto al ícono `Battery` como al texto del valor porcentual.
 
 ---
 
-## 8. Decisiones Pendientes
+## 8. Card del Vehículo en Contexto Multi-GPS
+
+### Comportamiento actual (implementado, pendiente refinamiento)
+
+Cuando un vehículo tiene **2 o más GPS con posición** y el usuario lo selecciona en el mapa:
+- La **card expandida del vehículo se oculta** para evitar superposición visual con la capa GPS multi-posición
+- El marker del vehículo muestra el **pill destacado** (borde azul) como indicador de selección activa
+- La información detallada del vehículo queda disponible en el **panel lateral** (FloatingStats)
+
+### Razón del cambio
+
+Al seleccionar JUAN (multi-GPS), aparecían simultáneamente la card del vehículo con nombre/placa/estado Y los markers GPS individuales + polyline punteada, creando una superposición confusa en el mapa.
+
+### Comportamiento futuro (decisión pendiente)
+
+| Opción | Descripción |
+|--------|-------------|
+| A | Card del vehículo reemplazada por versión compacta (nombre + placa, sin detalles) |
+| B | Card integrada: resumen del vehículo + conteo de GPS activos debajo |
+| C | Mantener pill destacado definitivamente (comportamiento actual) |
+
+La lógica de `createCustomIcon` está intacta — el cambio solo suprime `isSelected` cuando `hasMultiGps`. Revertir o modificar es trivial.
+
+---
+
+## 9. Decisiones Pendientes
 
 | # | Tema | Estado |
 |---|------|--------|
@@ -427,6 +495,7 @@ El color aplica tanto al ícono `Battery` como al texto del valor porcentual.
 | 5 | Panel de admin futuro | ⏳ Pendiente: gestión de usuarios y asignación de roles desde la UI. |
 | 6 | `client` — vehículos filtrados | ⏳ Pendiente: ¿el cliente solo ve los vehículos asignados a su empresa? |
 | 7 | Etiquetas estado en GPS Popover | ⏳ Pendiente: los estados por dispositivo (Encendido/Apagado) usan español en ambas plataformas — ¿cambiar en C-Go a inglés técnico? |
+| 8 | Card del vehículo con multi-GPS | ⏳ Pendiente: definir si mostrar card compacta, card integrada con GPS, o mantener pill destacado (ver sección 8). |
 
 ---
 

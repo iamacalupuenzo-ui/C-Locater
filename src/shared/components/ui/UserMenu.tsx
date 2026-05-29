@@ -30,10 +30,11 @@ const PROFILES: { id: AppProfile; label: string }[] = [
 ];
 
 const ROLES: { id: UserRole; label: string }[] = [
-  { id: 'admin',    label: 'Administrador'    },
-  { id: 'esad',     label: 'ESAD'             },
-  { id: 'operator', label: 'Concesionaria'    },
-  { id: 'client',   label: 'Cliente Directo'  },
+  { id: 'admin',     label: 'Administrador'    },
+  { id: 'esad',      label: 'ESAD'             },
+  { id: 'operator',  label: 'Concesionaria'    },
+  { id: 'client',    label: 'Cliente Directo'  },
+  { id: 'developer', label: 'Desarrollador'    },
 ];
 
 export function UserMenu({ user, profile, onProfileChange, userRole, onRoleChange, onSettings, onLogout }: UserMenuProps) {

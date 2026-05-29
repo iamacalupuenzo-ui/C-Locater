@@ -1,7 +1,7 @@
 # Contexto del Proyecto CLocater
 
 > Documentación técnica completa para análisis y modificación del proyecto
-> Actualizado: 2026-05-09 (Sesión 5)
+> Actualizado: 2026-05-23 (Sesión 24 — VehicleTrackingMap: chevrons eliminados, dashArray `14 10` route-flow. Rutas fantasma backgroundRoutes. Auto-cruce 21/05/2026. Zoom: ZoomLimiter fija minZoom = fitBounds_zoom - 2 (900ms post-animación), se resetea al desseleccionar viaje. Peso dinámico: lineWeight=2 zoom≥16 / 3 zoom≥14 / 4 menor, ghostWeight=lineWeight-1)
 
 ---
 
@@ -89,12 +89,22 @@ C:\Users\emacalupu\Documents\Proyectos\CLocater\
     │   │   │   │   ├── GpsPopover.tsx       # Panel de dispositivos GPS
     │   │   │   │   └── VehicleAccordionItem.tsx  # Tarjeta acordeón de vehículo
     │   │   │   ├── FleetMap.tsx
-    │   │   │   ├── FloatingStats.tsx    # Orquestador: estado, filtros, lista
+    │   │   │   ├── FloatingMonitor.tsx  # Panel flotante draggable de búsqueda + lista
+    │   │   │   ├── FloatingStats.tsx    # StatCards (C-Go) — orquestador legacy
+    │   │   │   ├── AIAssistant.tsx      # Asistente de voz IA (Groq Whisper + LLM)
     │   │   │   ├── CaminosModule.tsx
-    │   │   │   └── NuevoGrupoModule.tsx
+    │   │   │   ├── NuevoGrupoModule.tsx
+    │   │   │   ├── CardPreviewModule.tsx  # [dev] Preview visual de VehicleAccordionItem
+    │   │   │   └── HistorialModule.tsx    # [dev] Changelog filtrable por componente
     │   │   └── lib/
     │   │       ├── data.ts              # Vehicle + GpsDevice types · FLEET_DATA · RUTAS_DATA
-    │   │       └── utils.ts             # cn(), UserRole (admin|esad|operator|client), formatLastSeen*
+    │   │       ├── utils.ts             # cn(), UserRole (admin|esad|operator|client), formatLastSeen*
+    │   │       ├── ThemeContext.tsx      # isDark context (useTheme)
+    │   │       ├── VehicleContext.tsx    # Animación de vehículos en carretera (useVehicles)
+    │   │       ├── paths.ts             # Waypoints por vehículo para animación
+    │   │       ├── routeFetcher.ts      # Cliente OSRM para rutas reales por carretera
+    │   │       ├── fleetAgent.ts        # Agente LLM con herramientas de flota
+    │   │       └── fleetKnowledge.ts    # Base de conocimiento del dominio para el agente IA
     │   │
     │   ├── img/
     │   │   ├── logo.png                 # Logo C-Go (HeaderCGo)
@@ -135,25 +145,73 @@ C:\Users\emacalupu\Documents\Proyectos\CLocater\
 
 **Estado actual:**
 ```typescript
-const [activeView, setActiveView] = useState('explore');       // 'explore' | 'caminos'
-const [profile, setProfile]       = useState<AppProfile>('c-go');
-const [userRole, setUserRole]     = useState<UserRole>('admin'); // mutable, vendrá del backend
+const [activeView, setActiveView]           = useState('explore');
+const [profile, setProfile]                 = useState<AppProfile>('c-go');
+const [userRole, setUserRole]               = useState<UserRole>('esad');
+const [showMonitor, setShowMonitor]         = useState(false);
+const [isDark, setIsDark]                   = useState(false);
+const [monitorSide, setMonitorSide]         = useState<'left' | 'right'>('left');
+const [monitorW, setMonitorW]               = useState(306);
+const [showStats, setShowStats]             = useState(true);
+const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+// Tooltip del botón de métricas
+const [showMetricsTooltip, setShowMetricsTooltip] = useState(false);
+const metricsButtonRef                      = useRef<HTMLButtonElement>(null);
+const [metricsTooltipPos, setMetricsTooltipPos] = useState<{ top: number; left: number } | null>(null);
 ```
 
+**Métricas dinámicas (`clientMetrics`):**
+- Escucha evento `vehicleSelected` → actualiza `selectedVehicleId`
+- `useMemo` calcula métricas por vehículo (usando seed basado en `v.id`) o generales:
+  - Generales: `148,000 km · 3,842 viajes · 2,640h · 4.87 · S/ 12,480.00`
+  - Por vehículo: derivadas de `v.odometer` y `parseInt(id)`
+
+**Atajos de teclado (solo `profile === 'c-loc'`):**
+- `Ctrl+B`: abre monitor; si ya está abierto, despacha `focusMonitorSearch` para re-enfocar input
+- `Ctrl+M`: toggle `showStats` (muestra/oculta StatCards)
+
+**Botón de métricas:**
+- Posición: `right: 16` cuando monitor está a la izquierda; `left: 16` cuando está a la derecha
+- Se oculta al mover el mapa: `opacity: mapMoving ? 0 : 1` via `mapMoving` state (mismo listener en `App.tsx`)
+
+**Panel Peajes (`PeajesPanel`):**
+- Se abre/cierra al hacer click en la StatCard "Peajes" (`onClick` + `active` props en `StatCard`)
+- Posición: `absolute top-[60px] right: 52` — justo debajo de las StatCards, a la izquierda del botón de métricas (`right: 16` + 32px ancho = ocupa hasta `right: 48`; panel a `right: 52` deja 4px de separación)
+- Estructura: header con ícono + título + X · sección "Costos por viaje" · 3 ítems:
+  1. **Monto**: valor total de peajes (no expandible)
+  2. **Costo de combustible (20%)**: expandible → muestra equivalente calculado (20% del monto)
+  3. **Costo de mantenimiento (S/ 30.00)**: expandible → muestra S/ 30 × viajes = total
+- Misma lógica de ocultamiento: `animate={{ opacity: mapMoving ? 0 : 1 }}`
+- `StatCard` recibe `onClick?: () => void` y `active?: boolean` (borde purple cuando activa)
+- Estilo: fondo negro `rgba(17,24,39,0.88)`, 3 barras blancas animadas (`scaleY`)
+- Tooltip via `createPortal`: posición calculada desde `getBoundingClientRect()`, muestra `[Ctrl][M]`
+- Solo visible para `userRole === 'client'`
+
 **Props que pasa a hijos:**
-- `HeaderCGo` / `HeaderCLoc` → `onProfileChange`, `userRole`, `onRoleChange`
+- `FleetMap` → `monitorSide`, `monitorW`
+- `FloatingMonitor` → `isOpen`, `onToggle`, `onClose`, `profile`, `userRole`, `isDark`, `onSideChange`
 - `FloatingStats` → `profile`, `userRole`
 
 **Layouts:**
 ```tsx
-// C-Loc: sidebar izq + (header + main)
-<div className="flex w-full h-screen">
-  <SidebarCLoc ... />
-  <div className="flex flex-col flex-1">
-    <HeaderCLoc onProfileChange={setProfile} userRole={userRole} onRoleChange={setUserRole} />
-    <main>...</main>
+// C-Loc: sidebar izq + main (sin header)
+<VehicleProvider>
+  <div className="flex w-full h-screen">
+    <SidebarCLoc ... />
+    <div className="flex flex-col flex-1">
+      <main>
+        {activeView === 'explore' && (
+          <>
+            <FleetMap monitorSide={monitorSide} monitorW={monitorW} />
+            <FloatingMonitor ... />
+            {userRole === 'client' && <>StatCards + toggle button + tooltip</>}
+          </>
+        )}
+        {activeView === 'caminos' && <CaminosModule />}
+      </main>
+    </div>
   </div>
-</div>
+</VehicleProvider>
 
 // C-Go: (header) + (sidebar + main)
 <div className="flex flex-col w-full h-screen">
@@ -259,13 +317,14 @@ export function FloatingStats({
 | Métricas de telemetría (acordeón) | `userRole !== 'admin'` | Otros: Velocidad + Dirección + Odómetro + Batería |
 | Vista colapsada — segunda línea | `userRole === 'admin'` | `[placa]` · `[DD mes · H:MM AM/PM]` |
 | Vista colapsada — segunda línea | `userRole !== 'admin'` | `[placa]` · `[velocidad]` |
+| Ícono de vehículo (color) | GPS principal `reportStatus` | Verde (reporting) · Naranja (low/no-signal) · Rojo (disconnected) · Gris (sin GPS) |
 | Badge de estado del vehículo | `profile === 'c-go'` | "Ignition ON / OFF / Disconnected" |
 | Badge de estado del vehículo | `profile === 'c-loc'` | "Encendido / Apagado / Desconectado" |
 | Badge GPS en ícono de vehículo | `profile === 'c-go' && userRole === 'client'` | Oculto para client. Operator ve badge con count sin contingencia |
 | Botón "Ver dispositivos GPS" | `profile === 'c-go' && userRole === 'client'` | Oculto para client. Operator ve botón con devices sin contingencia |
 | SVR Contingencia en GpsPopover | `profile === 'c-go' && userRole === 'operator'` | Filtrado — operator no ve dispositivos de tipo contingencia |
 | Batería (ícono + valor) | siempre | Color dinámico: rojo ≤20% · ámbar ≤60% · verde >60% |
-| Acciones Zona 3 (pos. 3–4) | `userRole` | Admin: Parqueo+Comando · Operator: Detalle+Conducción · Client: Parqueo+Bloquear |
+| Acciones Zona 3 (pos. 3–4) | `userRole` | Admin: Parqueo+Comando · Operator: Detalle+Conducción · Client: Parqueo+Bloquear · Esad: oculta (acciones en menú ⋮) |
 
 **Sub-componente `VehicleAccordionItem`:**
 ```typescript
@@ -289,15 +348,18 @@ export function FloatingStats({
 - Badge GPS en ícono de vehículo solo aparece cuando `gpsCount > 1`
 - En C-Go `operator`: filtra dispositivos `contingencia` del listado
 - Nombres SVR por tipo: `'flotas'` → SVR Plus · `'basico'` → SVR Básico · `'contingencia'` → SVR Contingencia · `'svr-x'` → SVR X
-- Sin ícono `LocateFixed` en la tarjeta — eliminado para ganar espacio horizontal
-- **Arquitectura de información por tarjeta de dispositivo (Sesión 5):**
-  1. Nombre del plan (`SVR Plus`) + badge estado de señal (`● Transmitiendo / Sin señal / …`) — misma fila
-  2. Fecha y hora del último reporte (`formatLastSeenWithSecs` para admin/esad · `formatLastSeen` para operator)
-  3. Badge jerarquía (`Principal` / `Secundario` / `Respaldo`) + badge ignición `[⏻ ON/OFF]` (solo esad, **ON en verde** `text-emerald-600`)
+- Ícono `LocateFixed` usado en badge de señal (fila 3) — reemplaza el dot circular para entrenar asociación visual con el indicador GPS de la tarjeta del vehículo
+- **Arquitectura de información por tarjeta de dispositivo (Sesión 7 — final):**
+  1. Nombre del plan (`SVR Plus` bold) + jerarquía inline tenue (`Principal` azul/70 · `Secundario` slate-400) — mismo row, sin pills
+  2. Fecha y hora del último reporte `10px text-slate-400` (`formatLastSeenWithSecs` para admin/esad · `formatLastSeen` para operator)
+  3. Badge señal: ícono `LocateFixed w-3.5 h-3.5` + label (`Transmitiendo / Sin señal / …`) coloreado por estado + `animate-ping` si `reporting` · Badge ignición `[⏻ ON/OFF]` solo esad
   4. IMEI + LÍNEA en dos columnas con etiqueta uppercase `9px` y valor monospace `11px` · hover: color brand + subrayado + ícono copia
+  - Jerarquías: solo `Principal` (índice 0) y `Secundario` (índice ≥1) — eliminado "Respaldo"
+  - SVR Contingencia: mismo color que resto de secundarios (`text-slate-800`) — eliminado color lila
 - **Contenido expandido** (orden): Grupo/Subgrupo (esad, encima de dirección) → Dirección + Coords (`flex-col gap-1`, mismo que `VehicleAccordionItem`) → Métricas · posición de Grupo/Subgrupo pendiente de decisión con usuario
 - Fecha `lastSeen` por dispositivo: `admin` + `esad` con segundos · `operator` sin segundos · `client` no ve fecha
 - Tooltips en métricas al hover (igual que card de vehículo)
+- **Variables de color dark mode (Sesión 20)**: por device, se calculan `clocDark = isCloc && isDark`, `labelCls`, `valueCls`, `dividerCls`. Aplicadas en IMEI label/valor, LÍNEA label/valor/borde, coords copy button, métricas (íconos `text-blue-400` + valores `text-zinc-300`), encabezados y filas de Grupo/Subgrupo, separador de grupos (`border-zinc-700`). Secondary device name: `text-zinc-100` (antes `text-slate-800`, invisible en dark).
 
 **Métricas expandidas por rol (C-Go):**
 - `esad`: Velocidad · Odómetro · Batería · Eventos (4 métricas)
@@ -318,19 +380,46 @@ export function FloatingStats({
 - Modal de historial (`showShareHistory`): tabla con Destinatario · Estado · Acciones (copiar/cancelar)
 
 **Menú ⋮ (`GpsActionMenu`) — props: `userRole`, `profile`:**
-- `admin` / C-Loc: Ubicación · Viajes · Parqueo · Comando · Copiar información
-- `operator` C-Go: Ubicación · Viajes · Parqueo (sin Comando, sin Copiar información)
+- `admin` / C-Loc: Ubicación · Viajes · Parqueo · Comando · Copiar información · **Fijar arriba / Desanclar** (si `onTogglePin` está presente)
+- `operator` C-Go: Ubicación · Viajes · Parqueo · **Fijar arriba / Desanclar**
 - Copiar información: texto plano con `vehicle.owner`, `vehicle.plate`, `vehicle.name` (alias), coords, telemetría del `gpsDevice`
 - `vehicle.name` es siempre el **Alias** — nunca se etiqueta como "Conductor"
+
+**PIN / Anclar vehículo (`FloatingStats` + `VehicleAccordionItem`):**
+- Estado: `pinnedVehicleIds: Set<string>` en `FloatingStats`
+- `togglePin(id)`: toggle de presencia en el Set, nuevo objeto (inmutable)
+- `visibleFleet` se ordena con `sort()`: vehículos fijados primero, luego el resto (orden original conservado)
+- `VehicleAccordionItem` recibe `isPinned` y `onTogglePin` — pasa ambos al `GpsActionMenu`
+- Cuando `isPinned`:
+  - Borde de la tarjeta → `border-brand/30` con sombra sutil azul
+  - Chip `Pin` (w-3 h-3) en color brand, aparece a la izquierda del chevron en la cabecera
+- Opción del menú: `Pin` gris → "Fijar arriba" | `PinOff` brand → "Desanclar" (con fondo brand/5)
+- `menuHeight` ajustado: isOperatorCGo 172px · otros 250px (con pin) vs 120/200 sin pin
 
 ---
 
 ### 4.6 `FleetMap.tsx`
 
-- Props opcionales: `isDrawingMode`, `drawingPoints`, `onMapClick`, `groupRoutes`, `selectedRouteId`
+- Props: `monitorSide?: 'left' | 'right'` (default `'left'`), `monitorW?: number` (default `306`)
+- Props opcionales adicionales: `isDrawingMode`, `drawingPoints`, `onMapClick`, `groupRoutes`, `selectedRouteId`
 - Función `formatLastSeen` migrada a `shared/lib/utils.ts` (ahora importada)
 - Tile: CartoDB Voyager. Centro: Lima `[-12.0464, -77.0428]`, zoom 15
 - Eventos window: `vehicleSelected`, `flyToVehicle`, `mapMoveStart`, `mapMoveEnd`
+- **Ancho dinámico de pill markers** (Sesión 9): el pill del marcador de vehículo ya no tiene `width:160px` fijo. Se calcula con `inline-flex; white-space:nowrap` y la fórmula:
+  ```js
+  const maxChars = Math.max(vehicle.name.length * 7.5, vehicle.plate.length * 6.5);
+  const pillW = Math.max(Math.ceil(26 + 7 + maxChars + 24), 90);
+  // iconSize: [pillW, COLLAPSED_ANCHOR_Y + 6], iconAnchor: [pillW / 2, COLLAPSED_ANCHOR_Y]
+  ```
+- **Tarjeta de vehículo en mapa** (Sesión 13): estado `cardVehicleId` (separado de `highlightedId`)
+  - Solo se activa desde click en marker del mapa (NO desde el monitor/buscador)
+  - Tarjeta aparece en `bottom-4 left: 16` — `absolute z-[1000] w-[272px]`
+  - Animación: `opacity/y/scale` con `[0.23, 1, 0.32, 1]`
+  - Contenido: ícono vehículo + placa + chip alias + badge estado + propietario + botón X
+  - Grid 2×2: Velocidad | Dirección / Odómetro | Batería (color-coded)
+  - Footer: `MapPin` dirección + `Clock` lastSeen
+  - `handleDeselect` limpia tanto `highlightedId` como `cardVehicleId`
+  - **Ocultarse al mover el mapa**: `mapMoving` state escucha `mapMoveStart`/`mapMoveEnd`. Cuando `true`: `animate={{ opacity: 0 }}` + `pointerEvents: none` en la tarjeta (mismo patrón que `FloatingMonitor`)
 
 ---
 
@@ -341,7 +430,7 @@ export function FloatingStats({
 export function cn(...inputs: ClassValue[]): string
 
 // Sistema de roles
-export type UserRole = 'admin' | 'operator' | 'client';
+export type UserRole = 'admin' | 'esad' | 'operator' | 'client' | 'developer';
 
 // Formateo de fechas (input: '05/05/2026 09:14 a.m.')
 export function formatLastSeenMini(lastSeen: string): string
@@ -402,7 +491,13 @@ type GpsDevice = {
   gpsDevices?: GpsDevice[]; // Datos propios por GPS (ANA: 2, JUAN: 3, FLOTA-X: 5)
 }
 ```
-**7 vehículos**, posiciones en Lima, Perú. Vehículos con `gpsDevices`: ANA (2), JUAN (3), FLOTA-X (5).
+**85 vehículos** (IDs 1–85). IDs 1–11 en Lima; IDs 12–69 en 13 departamentos peruanos; IDs 70–85 en carreteras/autopistas aisladas:
+- Arequipa (8, IDs 12-19), Cusco (6, IDs 20-25), Trujillo (6, IDs 26-31), Piura (5, IDs 32-36)
+- Chiclayo (5, IDs 37-41), Iquitos (4, IDs 42-45), Puno (4, IDs 46-49), Tacna (3, IDs 50-52)
+- Ica (4, IDs 53-56), Huancayo (4, IDs 57-60), Cajamarca (3, IDs 61-63), Chimbote (3, IDs 64-66), Huánuco (3, IDs 67-69)
+- **Aislados en carreteras** (16, IDs 70-85): Carretera Central (70-72), Panamericana Norte (73-74), Panamericana Sur (75-77), Interoceánica Sur (78-79), Fernando Belaúnde (80-81), Tingo María (82), Puno-Desaguadero (83), Arequipa-Moquegua (84), Ica-Nazca (85)
+
+Vehículos con `gpsDevices`: ANA (2), JUAN (3), FLOTA-X (5). IDs 8–11: `no-signal` (ROSA), `low-signal` (DIEGO, 2 GPS), `disconnected` (ELENA), `reporting` (RUTA-7).
 
 **Modelo**: el vehículo es el generador de información; cada GPS es un receptor independiente. Un GPS fallido puede tener datos distintos al resto.
 
@@ -557,9 +652,9 @@ import logoPeque from '../../img/clo-peque.png';
 | Sidebar C-Go | `src/c-go/components/Sidebar.tsx` |
 | Sidebar C-Loc | `src/c-loc/components/Sidebar.tsx` |
 | Panel de monitoreo (roles, métricas) | `src/shared/components/FloatingStats.tsx` |
-| Mapa + marcadores | `src/shared/components/FleetMap.tsx` |
+| Mapa + marcadores + GPS multi-pos | `src/shared/components/FleetMap.tsx` |
 | Tipos y utilidades | `src/shared/lib/utils.ts` |
-| Datos de vehículos/rutas | `src/shared/lib/data.ts` |
+| Datos de vehículos/rutas/GPS positions | `src/shared/lib/data.ts` |
 | Tema visual | `src/index.css` |
 | Decisiones de producto/UX | `definicion.md` |
 
@@ -576,5 +671,514 @@ import logoPeque from '../../img/clo-peque.png';
 - **Roles internos**: `userRole` viene de `useState` en `App.tsx` hoy. Cuando llegue backend, se reemplaza por el valor del token — la lógica condicional en componentes no cambia.
 
 ---
+
+---
+
+## 13. Capa GPS Multi-Posición en el Mapa (Sesión 6)
+
+### Comportamiento (admin y operador)
+
+Cuando el usuario selecciona un vehículo (click en marker del mapa o expand de tarjeta en panel monitor), si ese vehículo tiene **2 o más GPS con posición**, el mapa muestra:
+
+1. **Polyline punteada azul** conectando todos los GPS en orden (trail de ubicaciones)
+2. **Markers GPS individuales** para cada dispositivo con pill de nombre (SVR Plus, SVR Básico, etc.)
+3. **Auto-fit de bounds** para centrar el mapa en todos los GPS del vehículo seleccionado
+
+### Clustering de vehículos por zoom (rev 9)
+
+Cuando el usuario aleja el mapa (zoom < `VEHICLE_CLUSTER_ZOOM = 14`), los vehículos cercanos se agrupan en badges azules con contador.
+
+**Lógica:**
+- `computeVehicleClusters(zoom)` → grupos usando `vehicleClusterThreshold(zoom) = 0.4 / 2^(zoom-10)`
+- Zoom 13: umbral ~0.03°; zoom 12: ~0.06°; zoom 11: ~0.125°
+- `VehicleCluster` type: `{ key, center, vehicles[] }`
+- `createVehicleClusterIcon(count)` → badge azul (#0052CC) con número + "veh."
+- Click en cluster badge → `fitBoundsToVehicleCluster` event → mapa hace zoom in hasta ver vehículos separados
+
+**Cuando hay clustering activo (`vehiclesAreClustered = true`):**
+- Capa GPS se oculta completamente (`showGpsLayer = false`)
+- `expandedId`, `selectedGpsImei`, `expandedGpsImei`, `spiderfiedClusterKey` se resetean
+- Se despacha `vehicleSelected` con `id: null` para limpiar el panel lateral
+
+**Zoom adaptativo GPS markers (rev 8):**
+- zoom ≥ 14: card completa (nombre + tiempo + badge estado)
+- zoom < 14: `createGpsCompactLabel` — solo pill con nombre + dot
+
+### Distribución de GPS (clustering GPS)
+
+Se eliminó el sistema de clustering/spiderfication por badge. Todos los GPS se muestran **individualmente desde el primer momento**:
+- `getGpsSpreadPositions(vehicle.position, count)` distribuye todos los GPS alrededor del vehículo
+- 2 GPS → izquierda y derecha; 3+ GPS → círculo equidistante
+- Radio: `GPS_SPREAD_RADIUS = 0.0018` grados (~200m)
+- Cada GPS tiene su propia línea directa al dot del vehículo (`color="#6366F1"`, `weight:2.5`, `dashArray:"7,5"`)
+- **Eliminado**: clustering badge, `computeClusters()`, `gpsDistance()`, `createClusterIcon()`, `GpsCluster`, `spiderfiedClusterKey` state, trail polyline azul
+
+### GPS Highlight y Card — Estados separados (rev 4)
+
+Existen dos estados independientes para el GPS en el mapa:
+
+| Estado | Variable | Quién lo activa | Efecto visual |
+|--------|----------|-----------------|---------------|
+| `selectedGpsImei` | ping/highlight | `GpsPopover` (sidebar) o click en mapa | Animación pulsante `gps-ping-ring` en el dot del marker |
+| `expandedGpsImei` | card abierta | click en marker GPS del mapa | Card expandida `createGpsExpandedIcon` sobre el marker |
+
+- Cuando el usuario expande un GPS en `GpsPopover`, se despacha `gpsDeviceSelected` → solo activa `selectedGpsImei` (ping), **no** abre la card
+- Cuando el usuario hace click en un GPS en el mapa → activa `expandedGpsImei` (card) **y** `selectedGpsImei` (ping en el dot de la card)
+- `_closeGpsCard()` limpia solo `expandedGpsImei`, el ping se mantiene si el GPS sigue seleccionado en sidebar
+- Animaciones CSS inyectadas: `@keyframes gps-ping` + `.gps-ping-ring` + `@keyframes gps-card-pop` + `.gps-card-anim`
+
+### Supresión de card del vehículo cuando tiene multi-GPS (rev 5)
+
+Cuando un vehículo tiene **2 o más GPS con posición** y el usuario lo selecciona:
+- La card expandida del vehículo **se oculta** (no se elimina — la lógica sigue intacta en `createCustomIcon`)
+- El marker del vehículo muestra el **pill destacado** (borde azul, `isHighlighted=true`) como indicador de selección
+- La capa GPS multi-posición toma el rol informativo
+
+**Implementación** en `FleetMap.tsx` — sección `Fleet vehicle markers`:
+```ts
+const vGpsCount = (vehicle.gpsDevices ?? []).filter(d => d.position != null).length;
+const hasMultiGps = isExpanded && vGpsCount >= 2;
+createCustomIcon(
+  vehicle,
+  isExpanded && !hasMultiGps,          // card: solo cuando GPS único o sin GPS
+  highlightedId === vehicle.id || hasMultiGps  // pill highlight cuando multi-GPS
+)
+```
+
+**Pendiente / Mejora futura**: Cuando se resuelva el diseño definitivo de cómo mostrar info del vehículo en el contexto multi-GPS (card diferente, panel integrado, etc.), la lógica de `createCustomIcon` está lista — solo cambiar la condición `isExpanded && !hasMultiGps`.
+
+
+### Datos de posición GPS
+
+`GpsDevice` ahora tiene `position?: [number, number]`. Vehículos con posiciones asignadas:
+- **ANA** (id=1): GPS flotas en `[-12.0450, -77.0400]`, GPS contingencia en `[-12.0350, -77.0280]` (lejos)
+- **JUAN** (id=3): 4 GPS distribuidos alrededor de `[-12.049, -77.048]`
+- **FLOTA-X** (id=7): 5 GPS — los 2 primeros en `[-12.0460/-12.0461, -77.0460/-77.0461]` (cluster/spiderfy demo), 3 separados
+
+### Nuevos eventos de window
+
+| Evento | Payload | Quién despacha | Quién escucha |
+|--------|---------|----------------|---------------|
+| `gpsDeviceSelected` | `{ vehicleId, imei \| null }` | `GpsPopover` | `FleetMap` |
+
+### Componentes clave agregados en FleetMap
+
+- `GpsBoundsUpdater` — fitBounds al cambiar vehículo activo con 2+ GPS
+- `computeClusters()` — agrupa GPS por proximidad (SPIDERFY_THRESHOLD)
+- `getSpiderfyPositions()` — calcula posiciones spread para 2 ó N GPS
+- `createGpsIcon()` — marker compacto con pill de tipo + dot coloreado + ping opcional
+- `createClusterIcon()` — badge amarillo con count
+- `createSpiderfyGpsIcon()` — marker con card extendida para estado spiderfied
+- `GPS_LOCATE_SVG()` — SVG helper con el ícono `LocateFixed` de Lucide (círculo grande + 4 líneas externas), igual al que usa VehicleAccordionItem en el botón GPS
+- `createGpsExpandedIcon()` — card expandida sobre el marker GPS: ícono GPS coloreado + nombre GPS + badge de estado + coordenadas + última actualización + botón ✕ + pulsing dot en el puntero inferior. Se activa cuando `expandedGpsImei === device.imei`. Llama `window._closeGpsCard()`.
+- `createGpsCompactLabel(device)` — etiqueta compacta para zoom bajo (< 14): pill con ícono + nombre del tipo GPS + dot coloreado pequeño. Sin time/status.
+- `createGpsMarkerIcon(device, isSelected)` — **estilo completo para zoom alto (≥ 14)** (single y spiderfied): card blanca con radio-10px + ícono LocateFixed + nombre del tipo GPS + tiempo última actualización + badge de estado con color. Dot coloreado en puntero inferior con opcional `gps-ping-ring`. Reemplaza `createGpsIcon` y `createSpiderfyGpsIcon` anteriores.
+  - Status badge: fondo `sc.bg`, dot `sc.dot`, texto `sc.text` — colores definidos en `GPS_STATUS_STYLE_STR`
+  - `iconSize: [160, 70]`, `iconAnchor: [80, 60]` (anclado en centro del dot inferior)
+- No existe panel flotante derecho — toda la info GPS se muestra inline sobre el marker en el mapa.
+
+---
+
+## 14. C-Loc UI — Refinamientos (Sesión 9)
+
+### Colores del layout C-Loc
+- **Sidebar** (`SidebarCLoc`): `bg-white` — color neutro para diferenciarse del panel
+- **Panel de monitoreo** (`FloatingStats` en modo sidebar): `bg-neutral-50` con `border-r border-neutral-200`
+- El sidebar blanco da jerarquía visual: nav (blanco, limpio) vs contenido (neutral-50, sutil)
+
+### Botón Monitor activo en sidebar
+- Botón colapsado: `bg-gray-900/[0.06] text-gray-900` cuando `monitorOpen`
+- Botón expandido: `bg-gray-900/[0.06] text-gray-900 font-semibold` cuando `monitorOpen`
+- Se activa también cuando el buscador está en uso
+
+### Botón colapsar panel
+- Posición: `absolute -right-[30px] top-1/2 -translate-y-1/2` relativo al contenedor de búsqueda
+- El `pr-[18px]` del header (vs `px-3`) requiere `-right-[30px]` (no `-right-6`)
+
+### Filtros de búsqueda
+- Tamaño: `text-[11px]` · Color: `text-neutral-400` (hover: `text-neutral-600`)
+- Íconos: `w-3 h-3`, chevrons: `w-2.5 h-2.5`
+- Alineados al inicio del ícono del buscador (`pl-3.5`)
+
+### Tarjetas de vehículo C-Loc (VehicleAccordionItem)
+- Borde `rounded-lg` (12px, no 18px), margen `mx-3 mb-2`
+- Contraída: `border-neutral-200 hover:border-neutral-300 hover:shadow-sm`
+- Expandida: `border-blue-200 shadow-[0_2px_12px_rgba(59,130,246,0.08)]`
+- Padding ZONA 1: `py-3 px-3`; contenido expandido: `px-3 pt-0 pb-3`
+- GPS button bottom: `pb-[2px]`
+
+### Ícono PIN en tarjeta anclada
+- `Pin` (Lucide) en `top-2 right-2` dentro de la tarjeta (no fuera — `overflow-y:auto` clipea overflow)
+- `rotate-45`, `w-3.5 h-3.5`, `fill-neutral-900 text-neutral-900`, `z-10`
+- Primera tarjeta anclada: el icono puede quedar detrás del sticky header — solución: icono dentro de la tarjeta (no en borde superior)
+
+### Sección sticky de anclados
+- `z-[60]` para superar GPS badges (`z-50`)
+- `bg-neutral-50` (mismo color que panel) para opacar las tarjetas que pasan por debajo
+- Separador inferior `border-b border-neutral-100` solo cuando hay ancladas
+
+### Toggle claro/oscuro — arquitectura (Sesión 10)
+`isDark` vive en `App.tsx` y se pasa en cascada:
+- `SidebarCLoc` recibe `isDark` + `onToggleDark` como props (no tiene estado propio)
+- `FloatingStats` recibe `isDark` y aplica estilos al panel + pasa a `VehicleAccordionItem`
+- `VehicleAccordionItem` recibe `isDark`, calcula `clocDark = isCloc && isDark`
+
+**Paleta oscura (c-loc)**:
+- Panel: `bg-neutral-800 border-neutral-700`
+- Search bar: `bg-neutral-700` · texto `text-neutral-100` · placeholder `text-neutral-500`
+- Tarjetas: `bg-neutral-700 border-neutral-600`; expandida `border-blue-500/30`
+- Texto primario: `text-neutral-50` · secundario: `text-neutral-400` · terciario: `text-neutral-500`
+- Ignición activa: `bg-emerald-900/30 text-emerald-400` · inactiva: `bg-red-900/30 text-red-400`
+- GPS button: `bg-neutral-800 border-neutral-600`
+- Acciones zona 3: `text-neutral-400` · hover parqueo/bloquear: `text-red-400 bg-red-900/20`
+- **Brand color en dark**: `text-brand` (#0052CC) tiene bajo contraste en fondos oscuros → se usa `text-blue-400` (#60A5FA) como variante accesible. Helpers en VehicleAccordionItem: `brandCls` y `brandHover`
+- Borde tarjeta expandida dark: `border-blue-400/60` (más visible que blue-500/30)
+
+### Estilo sidebar oscuro (guardado para versión futura)
+Colores del sidebar en modo oscuro (disponible para implementar un toggle claro/oscuro):
+- Sidebar: `bg-gray-900` | texto: `text-gray-100` | activo: `bg-white/10`
+- Logo expandido: filter `brightness(0) invert(1)` | logo colapsado: igual
+- Separadores: `border-gray-700`
+
+---
+
+## 15. Animación de Vehículos en Carreteras (Sesión 10)
+
+### Comportamiento
+
+Los vehículos posicionados en carreteras (IDs 70–85) se mueven automáticamente a lo largo de sus rutas definidas, actualizando posición cada **2 segundos**.
+
+### Archivos
+
+| Archivo | Propósito |
+|---------|-----------|
+| `src/shared/lib/paths.ts` | Definición de waypoints por vehículo + velocidad |
+| `src/shared/lib/VehicleContext.tsx` | Contexto React + `setInterval` de animación |
+| `src/App.tsx` | Envuelve `FleetMap` + `FloatingStats` con `VehicleProvider` |
+
+### Cómo funciona
+
+1. **`paths.ts`** exporta `VEHICLE_PATHS: Record<string, VehiclePath>` con arrays de `[lat, lng]` waypoints por vehículo.
+2. **`VehicleContext.tsx`** provee un array `Vehicle[]` reactivo que:
+   - Inicia clonando `FLEET_DATA` con posiciones interpoladas aleatoriamente en las rutas
+   - Cada 2s avanza `segProgress` en 0.07 por segmento
+   - Al completar un segmento (`progress >= 1`), pasa al siguiente (en bucle)
+   - Interpola `[lat, lng]` linealmente entre waypoints
+   - Actualiza `speed`, `direction`, `coords`, `lastSeen` y `status` en cada tick
+3. **`FleetMap.tsx`** y **`FloatingStats.tsx`** consumen `useVehicles()` en lugar del `FLEET_DATA` estático.
+
+### Vehículos animados (16)
+
+| ID | Nombre | Ruta | Velocidad |
+|----|--------|------|-----------|
+| 70 | FERNANDO | Carretera Central (7 waypoints) | 5 seg/seg |
+| 71 | SILVIA | Carretera Central (4 wp) | 4 |
+| 72 | ELOY | Carretera Central (4 wp) | 6 |
+| 73 | HUMBERTO | Panamericana Norte (5 wp) | 8 |
+| 74 | ROXANA | Panamericana Norte (4 wp) | 10 |
+| 75 | ELISA | Panamericana Sur (4 wp) | 7 |
+| 76 | FAUSTO | Panamericana Sur (4 wp) | 8 |
+| 77 | BETTY | Panamericana Sur (4 wp) | 6 |
+| 78 | DANIEL | Interoceánica Sur (4 wp) | 4 |
+| 79 | OLGA | Interoceánica Sur (4 wp) | 3 |
+| 80 | ISRAEL | F. Belaúnde (4 wp) | 5 |
+| 81 | GRACIELA | F. Belaúnde (4 wp) | 6 |
+| 82 | ALFREDO | Tingo María (4 wp) | 4 |
+| 83 | RAUL | Puno-Desaguadero (4 wp) | 7 |
+| 84 | TANIA | Arequipa-Moquegua (4 wp) | 9 |
+| 85 | ZULEMA | Ica-Nazca (4 wp) | 10 |
+
+### Variables de estado (VehicleContext)
+
+```typescript
+type AnimState = {
+  segIdx: Record<string, number>;     // índice del segmento actual por vehicle.id
+  segProgress: Record<string, number>; // progreso 0–1 dentro del segmento
+};
+```
+
+- `animRef` (useRef): mutable, evita stale closures
+- `vehicles` (useState `Vehicle[]`): array reactivo que dispara re-renders
+- `setInterval` cada 2000ms: avanza `segProgress += 0.07`, hace wrap al completar
+
+### Funciones helper
+
+- `bearing(lat1, lng1, lat2, lng2)`: calcula dirección cardinal (N, NE, E, SE, S, SO, O, NO)
+- `interpolatePosition(vehicle, segIdx, segProgress)`: produce un Vehicle con posición interpolada + datos derivados
+- `formatTime(d)`: `dd/Mon/yyyy hh:mm:ss am/pm`
+
+---
+
+## 16. Asistente de Voz IA (Sesión 16)
+
+### Componente `AIAssistant.tsx`
+
+Asistente conversacional integrado en el mapa de C-Loc. Combina reconocimiento de voz (Groq Whisper), LLM (Groq Llama), y TTS nativo del navegador.
+
+**Archivo:** `src/shared/components/AIAssistant.tsx`
+
+**Flujo:**
+1. Usuario abre el asistente → `isActiveRef.current = true`
+2. `startListening()` → graba audio con `MediaRecorder`
+3. Al detectar silencio (`VAD`) → para grabación
+4. `MediaRecorder.onstop` → envía audio a Groq Whisper (si `!skipTranscribe`)
+5. Texto transcrito → `fleetAgent()` → respuesta del LLM
+6. TTS: `speechSynthesis.speak()` con la respuesta
+7. Al terminar TTS → vuelve a `startListening()` (si `isActiveRef.current`)
+
+**Guards de seguridad:**
+- `isActiveRef = useRef(false)` — previene que cualquier callback reinicie el mic después del cierre
+- `blockedUntilRef = useRef(0)` — bloquea llamadas a Groq 60s después de un error 429
+- `switchToTyping()` — para mic/TTS sin cerrar el asistente; habilita entrada de texto
+
+**Detección de voz (VAD):**
+- `THRESHOLD = 0.20`, `FRAMES_NEEDED = 12` — umbral alto para entornos ruidosos
+- `AudioContext` con filtro high-pass a 120Hz
+- `noiseSuppression: true`, `echoCancellation: true`, `autoGainControl: false`
+- `skipTranscribe` flag — evita llamar a Whisper si no hay habla detectada
+- Timeouts: `MAX_SESSION_MS = 15000` (sesión máx), `NO_SPEECH_MS = 8000` (sin voz)
+
+**Rate limiting Groq:**
+- Modelo: `meta-llama/llama-4-scout-17b-16e-instruct` (30K TPM)
+- Error 429 → `blockedUntilRef = Date.now() + 60000`
+- Si la segunda llamada LLM falla con 429 → retorna el resultado del tool directamente (la navegación ya ocurrió)
+- Sin cooldown preventivo (fue eliminado por ser molesto)
+
+**Interacción:**
+- Click en contenedor de input → `switchToTyping()` → deshabilita mic, enfoca texto
+- Botón X → `isActiveRef = false` → detiene todo
+- `Ctrl+B` (solo c-loc) → abre asistente o re-enfoca búsqueda
+
+### `src/shared/lib/fleetAgent.ts`
+
+Agente LLM con herramientas de flota:
+- `navigateToVehicle(id)` → despacha `vehicleSelected` + `flyToVehicle`
+- Modelo comentado para referencia: `llama-3.3-70b-versatile` (12K TPM), `llama-3.1-8b-instant` (6K TPM)
+- Modelo activo: `meta-llama/llama-4-scout-17b-16e-instruct` (30K TPM)
+
+---
+
+## 17. Dark Mode Completo — Paleta Zinc (Sesión 16)
+
+### Arquitectura
+
+`isDark` vive en `App.tsx`. Se distribuye de dos formas:
+1. **Props** → `SidebarCLoc`, `FloatingMonitor` (prop directa)
+2. **ThemeContext** → `FleetMap`, `StatCard`, `VehicleAccordionItem` (via `useTheme()`)
+
+### `ThemeContext.tsx`
+
+```typescript
+// src/shared/lib/ThemeContext.tsx
+import { createContext, useContext } from 'react';
+interface ThemeContextValue { isDark: boolean; }
+export const ThemeContext = createContext<ThemeContextValue>({ isDark: false });
+export function useTheme() { return useContext(ThemeContext); }
+```
+
+`App.tsx` envuelve el perfil c-loc en `<ThemeContext.Provider value={{ isDark }}>`.
+
+### Paleta oscura — zinc (no neutral)
+
+La paleta `zinc` tiene un tono azul-gris sutil más cálido que `neutral`, consistente con los tiles de Stadia Maps.
+
+| Token | zinc (usado) | neutral (descartado) | Color hex |
+|-------|-------------|---------------------|-----------|
+| Root bg | `zinc-950` | `neutral-950` | `#09090b` |
+| Superficies | `zinc-900` | `neutral-900` | `#18181b` |
+| Cards/paneles | `zinc-800` | `neutral-800` | `#27272a` |
+| Bordes | `zinc-700` | `neutral-700` | `#3f3f46` |
+| Texto primario | `zinc-100` | `neutral-100` | `#f4f4f5` |
+| Texto secundario | `zinc-400` | `neutral-400` | `#a1a1aa` |
+| Texto terciario | `zinc-500` | `neutral-500` | `#71717a` |
+
+### Componentes con dark mode
+
+| Componente | Implementación |
+|-----------|---------------|
+| `App.tsx` | Root div: `bg-zinc-950` en dark |
+| `FloatingMonitor.tsx` | Prop `isDark`; pill, panel, search, filtros, lista — todo zinc |
+| `FleetMap.tsx` | `useTheme()`; botones de zoom, card de vehículo, menú ⋮ — zinc |
+| `StatCard.tsx` | `useTheme()`; `bg-zinc-900/85 border-zinc-700/60`, textos zinc |
+| `VehicleAccordionItem.tsx` | `clocDark = isCloc && isDark`; todos `neutral-*` → `zinc-*` |
+| `SidebarCLoc.tsx` | Props `isDark` + `onToggleDark`; toggle sol/luna |
+
+### Mapa oscuro
+
+- Estado local `mapDark` (independiente de `isDark` global)
+- `useEffect` sincroniza `mapDark` con `isDark` cuando cambia el tema global
+- El usuario puede cambiar el tile del mapa independientemente con el botón sol/luna
+- **Dark**: `https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png` (Google Maps-like, grafito cálido)
+- **Light**: `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png`
+- `key={mapDark ? 'dark' : 'light'}` en `TileLayer` fuerza remount al cambiar tema
+- Botón sol/luna posicionado encima de los controles de zoom, con separador visual
+
+---
+
+## 18. `FloatingMonitor.tsx` — Panel Flotante de Búsqueda (Sesión 16+)
+
+Panel draggable que reemplaza al `FloatingStats` como monitor de flota principal en C-Loc.
+
+**Archivo:** `src/shared/components/FloatingMonitor.tsx`
+
+### Props
+
+```typescript
+interface FloatingMonitorProps {
+  isOpen: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  profile: 'c-go' | 'c-loc';
+  userRole: UserRole;
+  isDark?: boolean;       // prop ignorada — lee de ThemeContext vía useTheme()
+  onSideChange?: (side: 'left' | 'right', width: number) => void;
+}
+```
+
+### Comportamiento
+
+**Dos estados visuales (Framer Motion `AnimatePresence`):**
+- **Pill** (colapsado): barra de búsqueda inerte con hint `[Ctrl][B]`, ancho `panelW`
+- **Panel** (expandido): búsqueda activa + filtros + lista de vehículos acordeón
+
+**Posicionamiento draggable:**
+- `absolute top-4 left-0 z-10` dentro del `<main>` del mapa
+- Drag horizontal libre; al soltar (`handleDragEnd`) hace snap a izquierda o derecha según el punto medio
+- `snapTo(side)` usa `snapControls` (Framer `useAnimationControls`) para animación spring
+- `currentSideRef` persiste el lado activo; `onSideChange` notifica a `App.tsx` para ajustar `FleetMap`
+- `ResizeObserver` sobre el parent recalcula `panelW` y reposiciona al cambiar tamaño de ventana
+- `PANEL_W_MAX = 306`, `EDGE_GAP = 16`
+
+**Filtros:**
+- **Estado** (`StatusFilter`): Todos · En ruta · Detenido · Sin señal
+- **Tipo** (`TypeFilter`): Todos · Moto · Auto · Camión · Bus
+- Filtros activos muestran chips animados con botón ✕ individual
+- Dropdown "Más" presente pero sin implementar aún
+
+**Lista de vehículos:**
+- Consume `useVehicles()` (animados) — no usa `FLEET_DATA` directo
+- Filtra por `searchQuery` (placa o nombre), `statusFilter`, `typeFilter`
+- Ordenada: anclados (sticky con `bg-zinc-900/95` o `bg-white/90`) → no anclados
+- `pinnedVehicleIds: Set<string>` — inmutable por spread; separador `bg-brand/15` debajo de anclados
+- `showScrollHint`: chevron animado bouncing cuando hay contenido fuera del viewport
+
+**Teclado:**
+| Atajo | Acción |
+|-------|--------|
+| `↑` / `↓` | Navega entre tarjetas (`highlightedIndex`) |
+| `Enter` | Expande tarjeta + `flyToVehicle` |
+| `Ctrl+F` | Enfoca input de búsqueda |
+| `Ctrl+P` | Ancla/desancla el vehículo resaltado |
+| `Escape` | Cierra el panel |
+| `focusMonitorSearch` (evento) | Enfoca input (usado por Ctrl+B desde App.tsx) |
+
+**Opacidad en movimiento del mapa:**
+- `mapMoving` escucha `mapMoveStart` / `mapMoveEnd`
+- Cuando `mapMoving === true`: `opacity: 0`, `pointerEvents: none` — panel se oculta para no obstruir
+
+**Altura máxima adaptativa:**
+- Card de vehículo abierta en mapa: `calc(100vh - 233px)`
+- Sin card: `calc(100vh - 88px)`
+- Detecta evento `vehicleSelected` con `source === 'marker'`
+
+**Dark mode:** lee `isDark` de `ThemeContext` (`useTheme()`). Toda la paleta usa zinc (ver sección 17).
+
+---
+
+## 19. Módulos de Desarrollo (Sesión 3+)
+
+Dos componentes visibles únicamente cuando `userRole === 'developer'`. Se acceden desde el Sidebar como vistas (`activeView`).
+
+### `CardPreviewModule.tsx`
+
+**Propósito:** Sandbox visual para iterar el diseño de `VehicleAccordionItem` sin necesidad de datos reales.
+
+**Archivo:** `src/shared/components/CardPreviewModule.tsx`
+
+**Contenido:**
+- Selector de rol (`admin | esad | operator | client`) — cambia las props de todas las tarjetas simultáneamente
+- Grid 2×2 con las 4 variantes de `reportStatus`: `reporting · low-signal · no-signal · disconnected`
+- Cada celda genera un `Vehicle` demo via `makeVehicle(overrides)` con datos fijos (placa `ABC-123`, propietario `Empresa Demo SAC`)
+- Instancia `VehicleAccordionItem` real — lo que se ve aquí es idéntico a producción
+- Historial simplificado (sin tags de componente) de sesiones 4–7
+
+**No tiene props** — es una vista autónoma.
+
+---
+
+### `HistorialModule.tsx`
+
+**Propósito:** Changelog navegable de todas las sesiones de desarrollo, con filtro por componente.
+
+**Archivo:** `src/shared/components/HistorialModule.tsx`
+
+**Estructura de datos:**
+```typescript
+interface ChangeEntry {
+  session: string;   // 'Sesión 7'
+  date: string;      // '14 may 2026'
+  changes: {
+    text: string;
+    component: string;   // 'FleetMap' | 'GpsPopover' | ...
+    profile?: string;    // 'c-go' | 'c-loc'
+    role?: string;       // 'esad' | 'developer' | ...
+  }[];
+}
+```
+
+**7 sesiones registradas** (Sesión 1–7) con **metadata por cambio**: componente afectado, perfil y rol opcionales.
+
+**Filtro por componente:** chips de todos los componentes únicos (`ALL_COMPONENTS`), toggle individual — filtra en tiempo real sin perder el contexto de sesión.
+
+**No tiene props** — es una vista autónoma.
+
+---
+
+## 20. Utilidades de IA y Rutas
+
+### `fleetKnowledge.ts` — Base de Conocimiento del Agente
+
+**Archivo:** `src/shared/lib/fleetKnowledge.ts`
+
+Exporta la constante `FLEET_KNOWLEDGE: string` — un string markdown usado como **system prompt** del agente IA en `fleetAgent.ts`.
+
+**Contenido del knowledge base:**
+- Descripción de la plataforma CLocater (contexto de dominio peruano)
+- Tabla de tipos de vehículo (`car | motorcycle | truck | bus | machinery`)
+- Estados y su significado (`active | stopped | offline`)
+- Campos disponibles por vehículo con ejemplos
+- 6 tipos de alertas automáticas (geocerca, velocidad, horario, etc.)
+- Reglas de parseo de placas peruanas desde voz (`"MOT guion novecientos uno" → MOT-901`)
+- Operaciones disponibles para el asistente: `navigate_to_vehicle`, `get_vehicle_info`, `get_fleet_summary`, `list_vehicles_by_status`
+- Contexto operativo: zona horaria UTC-5, idioma español peruano, intervalo de actualización
+
+**Separación de responsabilidades:** este archivo solo contiene el conocimiento de dominio. La lógica del agente (tools, llamadas LLM, tool_use loop) vive en `fleetAgent.ts`.
+
+---
+
+### `routeFetcher.ts` — Cliente OSRM
+
+**Archivo:** `src/shared/lib/routeFetcher.ts`
+
+Cliente HTTP para calcular rutas reales por carretera usando la API pública de OSRM.
+
+```typescript
+// Base: https://router.project-osrm.org/route/v1/driving
+
+export async function fetchRoute(
+  waypoints: [number, number][]
+): Promise<[number, number][] | null>
+// Recibe array de [lat, lng], convierte a lng,lat para OSRM, retorna ruta decodificada [lat, lng][]
+
+export async function fetchAllRoutes(
+  paths: Record<string, [number, number][]>
+): Promise<Record<string, [number, number][]>>
+// Fetch paralelo (Promise.allSettled) para todos los vehículos animados
+// Solo incluye en el resultado los vehículos con ruta exitosa
+```
+
+**Parámetros OSRM:** `geometries=geojson&overview=full&alternatives=false&steps=false`
+
+**Uso:** `VehicleContext.tsx` llama `fetchAllRoutes(VEHICLE_PATHS)` al iniciar para reemplazar los waypoints rectos de `paths.ts` con geometrías que siguen las carreteras reales. Si la llamada falla (sin internet, OSRM caído), los vehículos animados siguen con las líneas rectas de `paths.ts` como fallback.
 
 *Fin del documento contexto.md*

@@ -8,9 +8,10 @@ interface GpsBadgeTooltipProps {
   vehicle: Vehicle;
   userRole?: UserRole;
   profile?: 'c-go' | 'c-loc';
+  isDark?: boolean;
 }
 
-export function GpsBadgeTooltip({ vehicle, userRole = 'operator', profile = 'c-go' }: GpsBadgeTooltipProps) {
+export function GpsBadgeTooltip({ vehicle, userRole = 'operator', profile = 'c-go', isDark = false }: GpsBadgeTooltipProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const badgeRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -36,11 +37,11 @@ export function GpsBadgeTooltip({ vehicle, userRole = 'operator', profile = 'c-g
   return (
     <div
       ref={badgeRef}
-      className="absolute -top-2 -left-2 z-50 cursor-default"
+      className="absolute -top-2 -left-2 z-[2] cursor-default"
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
     >
-      <div className="bg-brand text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 border-[1.5px] border-white shadow-sm">
+      <div className={`bg-brand text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 border-[1.5px] shadow-sm ${isDark ? 'border-zinc-900' : 'border-white'}`}>
         <LocateFixed className="w-2 h-2" /> {visibleCount}
       </div>
       {pos && createPortal(

@@ -2,32 +2,34 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Activity, Car, Clock, Star, CreditCard, Route, MapPin,
-  Filter, Search, Calendar, Check, X, ChevronDown,
+  Filter, Search, Calendar, Check, X, ChevronDown, ChevronLeft, Tag, Layers, SlidersHorizontal,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { UserRole } from '../lib/utils';
 import { Toast } from './ui';
-import { FLEET_DATA } from '../lib/data';
+import { useVehicles } from '../lib/VehicleContext';
 import { StatCard } from './fleet/StatCard';
 import { VehicleAccordionItem } from './fleet/VehicleAccordionItem';
 
 export { StatCard };
 
-export function FloatingStats({ profile = 'c-go', userRole = 'operator' }: { profile?: 'c-go' | 'c-loc'; userRole?: UserRole }) {
-  const [activeTab, setActiveTab]             = useState<string | null>(null);
+export function FloatingStats({ profile = 'c-go', userRole = 'operator', mode = 'float', onClose, isDark = false }: { profile?: 'c-go' | 'c-loc'; userRole?: UserRole; mode?: 'float' | 'sidebar'; onClose?: () => void; isDark?: boolean }) {
+  const vehicles = useVehicles();
+  const [activeTab, setActiveTab] = useState<string | null>(mode === 'sidebar' ? 'ubicaciones' : null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery]         = useState('');
-  const [toastMessage, setToastMessage]       = useState('');
-  const [showFilters, setShowFilters]         = useState(false);
-  const [dateFilter, setDateFilter]           = useState('Día');
-  const [selectedVehicles, setSelectedVehicles] = useState<string[]>(FLEET_DATA.map(v => v.id));
+  const [searchQuery, setSearchQuery] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [dateFilter, setDateFilter] = useState('Día');
+  const [selectedVehicles, setSelectedVehicles] = useState<string[]>(vehicles.map(v => v.id));
   const [customStartDate, setCustomStartDate] = useState('');
-  const [customEndDate, setCustomEndDate]     = useState('');
-  const [isMapMoving, setIsMapMoving]         = useState(false);
+  const [customEndDate, setCustomEndDate] = useState('');
+  const [isMapMoving, setIsMapMoving] = useState(false);
   const [showListScrollHint, setShowListScrollHint] = useState(false);
+  const [pinnedVehicleIds, setPinnedVehicleIds] = useState<Set<string>>(new Set());
 
-  const listScrollRef   = React.useRef<HTMLDivElement>(null);
-  const mapIdleTimer    = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listScrollRef = React.useRef<HTMLDivElement>(null);
+  const mapIdleTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const checkListScroll = React.useCallback(() => {
     const el = listScrollRef.current;
@@ -80,11 +82,11 @@ export function FloatingStats({ profile = 'c-go', userRole = 'operator' }: { pro
     return () => window.removeEventListener('vehicleSelected', onMapDeselect);
   }, []);
 
-  const isFilterActive = selectedVehicles.length !== FLEET_DATA.length || dateFilter !== 'Día' || customStartDate !== '' || customEndDate !== '';
+  const isFilterActive = selectedVehicles.length !== vehicles.length || dateFilter !== 'Día' || customStartDate !== '' || customEndDate !== '';
 
   const clearFilters = () => {
     setDateFilter('Día');
-    setSelectedVehicles(FLEET_DATA.map(v => v.id));
+    setSelectedVehicles(vehicles.map(v => v.id));
     setCustomStartDate('');
     setCustomEndDate('');
   };
@@ -93,26 +95,249 @@ export function FloatingStats({ profile = 'c-go', userRole = 'operator' }: { pro
     setSelectedVehicles(prev => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id]);
   };
 
+  const togglePin = (id: string) => {
+    setPinnedVehicleIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const toggleAll = () => {
-    setSelectedVehicles(selectedVehicles.length === FLEET_DATA.length ? [] : FLEET_DATA.map(v => v.id));
+    setSelectedVehicles(selectedVehicles.length === vehicles.length ? [] : vehicles.map(v => v.id));
   };
 
   const toggleTab = (tab: string) => {
-    setActiveTab(activeTab === tab ? null : tab);
+    setActiveTab(mode === 'sidebar' ? tab : (activeTab === tab ? null : tab));
     setSelectedVehicleId(null);
   };
 
-  const visibleFleet = FLEET_DATA
+  const visibleFleet = vehicles
     .filter(v => selectedVehicles.includes(v.id))
     .filter(v =>
       v.plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
       v.name.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-  const filteredFleetForCheckboxes = FLEET_DATA.filter(v =>
+  const pinnedFleet = visibleFleet.filter(v => pinnedVehicleIds.has(v.id));
+  const unpinnedFleet = visibleFleet.filter(v => !pinnedVehicleIds.has(v.id));
+
+  const filteredFleetForCheckboxes = vehicles.filter(v =>
     v.plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
     v.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (mode === 'sidebar') {
+    // offsetX: monitor panel (272px) / 2 = 136px — centers vehicle in the visible map area
+    const flyTo = (position: [number, number]) =>
+      window.dispatchEvent(new CustomEvent('flyToVehicle', { detail: { position, offsetX: 136 } }));
+
+    return (
+      <div className={cn('w-[304px] h-full flex flex-col shrink-0 transition-colors duration-200', isDark ? 'bg-neutral-900 border-r border-neutral-800' : 'bg-neutral-50 border-r border-neutral-200')}>
+        {/* Header estilo search */}
+        <div className="pl-3 pr-[18px] pt-3 pb-3 shrink-0 flex flex-col gap-3">
+          {/* Search bar + botón colapsar centrado */}
+          <div className="relative flex items-center">
+            <div className={cn('flex-1 flex items-center gap-2.5 rounded-2xl px-3.5 py-2.5', isDark ? 'bg-neutral-800' : 'bg-neutral-100')}>
+              <Search className={cn('w-4 h-4 shrink-0', isDark ? 'text-neutral-400' : 'text-neutral-400')} />
+              <input
+                type="text"
+                placeholder={`Buscar ${vehicles.length} vehículos`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className={cn('bg-transparent outline-none text-[13px] w-full placeholder:font-normal', isDark ? 'text-neutral-100 placeholder:text-neutral-500' : 'text-neutral-800 placeholder:text-neutral-400')}
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery('')} className="text-neutral-400 hover:text-neutral-600">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={onClose}
+              className={cn('absolute -right-[30px] top-1/2 -translate-y-1/2 w-6 h-6 rounded-full flex items-center justify-center shadow-md transition-colors z-10', isDark ? 'bg-neutral-600 hover:bg-neutral-500 text-white' : 'bg-gray-900 hover:bg-gray-700 text-white')}
+            >
+              <ChevronLeft className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Filter chips — sin fondo, texto plano con iconos */}
+          <div className="flex items-center gap-4 pl-3.5">
+            <button className={cn('flex items-center gap-1 text-[11px] font-medium transition-colors', isDark ? 'text-neutral-500 hover:text-neutral-300' : 'text-neutral-400 hover:text-neutral-600')}>
+              <Tag className="w-3 h-3" />
+              Estado
+              <ChevronDown className="w-2.5 h-2.5" />
+            </button>
+            <button className={cn('flex items-center gap-1 text-[11px] font-medium transition-colors', isDark ? 'text-neutral-500 hover:text-neutral-300' : 'text-neutral-400 hover:text-neutral-600')}>
+              <Layers className="w-3 h-3" />
+              Tipo
+              <ChevronDown className="w-2.5 h-2.5" />
+            </button>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn('flex items-center gap-1 text-[11px] font-medium transition-colors',
+                showFilters || isFilterActive
+                  ? (isDark ? 'text-neutral-200' : 'text-neutral-700')
+                  : (isDark ? 'text-neutral-500 hover:text-neutral-300' : 'text-neutral-400 hover:text-neutral-600')
+              )}
+            >
+              <SlidersHorizontal className="w-3 h-3" />
+              Más
+              <ChevronDown className="w-2.5 h-2.5" />
+            </button>
+            {isFilterActive && (
+              <button onClick={clearFilters} className="ml-auto text-[11px] font-medium text-red-400 hover:text-red-500 transition-colors">
+                Limpiar
+              </button>
+            )}
+          </div>
+        </div>
+
+
+        {/* Content area */}
+        {true && (
+          <div className="flex flex-col flex-1 overflow-hidden">
+
+            {/* Filter bar legacy — oculto, lógica se mantiene */}
+            {/* List / Filters */}
+            <div
+              ref={listScrollRef}
+              onScroll={checkListScroll}
+              className={cn('flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden transition-colors duration-200', isDark ? 'bg-neutral-900' : 'bg-neutral-50')}
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {showFilters ? (
+                <div className="p-3 flex flex-col gap-3">
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Día', 'Semana', 'Mes'].map(d => (
+                      <button key={d} onClick={() => setDateFilter(d)}
+                        className={cn('px-3 py-1.5 rounded-md text-[11px] font-medium transition-all border',
+                          dateFilter === d ? 'bg-neutral-900 text-white border-transparent' : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                        )}
+                      >{d}</button>
+                    ))}
+                    <button onClick={() => setDateFilter('Personalizado')}
+                      className={cn('px-3 py-1.5 rounded-md text-[11px] font-medium flex items-center gap-1.5 transition-all border',
+                        dateFilter === 'Personalizado' ? 'bg-neutral-900 text-white border-transparent' : 'bg-white text-neutral-600 border-neutral-200 hover:bg-neutral-50'
+                      )}
+                    >
+                      <Calendar className="w-3 h-3" /> Personalizado
+                    </button>
+                  </div>
+                  {dateFilter === 'Personalizado' && (
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="text-[10px] font-semibold text-neutral-400 mb-1 block uppercase tracking-wider">Desde</label>
+                        <input type="date" value={customStartDate} onChange={e => setCustomStartDate(e.target.value)} className="w-full text-[11px] bg-white border border-neutral-200 rounded-md px-2 py-1.5 outline-none font-medium text-neutral-700 focus:border-neutral-400" />
+                      </div>
+                      <div className="flex-1">
+                        <label className="text-[10px] font-semibold text-neutral-400 mb-1 block uppercase tracking-wider">Hasta</label>
+                        <input type="date" value={customEndDate} onChange={e => setCustomEndDate(e.target.value)} className="w-full text-[11px] bg-white border border-neutral-200 rounded-md px-2 py-1.5 outline-none font-medium text-neutral-700 focus:border-neutral-400" />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex flex-col gap-0.5 border-t border-neutral-100 pt-3">
+                    <div className="flex items-center justify-between py-1.5 mb-1">
+                      <button onClick={toggleAll} className={cn('w-4 h-4 rounded flex items-center justify-center border transition-colors', selectedVehicles.length === vehicles.length ? 'bg-brand border-brand' : 'bg-white border-neutral-300 hover:border-neutral-400')}>
+                        {selectedVehicles.length === vehicles.length
+                          ? <Check className="w-3 h-3 text-white" strokeWidth={3} />
+                          : selectedVehicles.length > 0 ? <div className="w-2 h-0.5 bg-brand rounded-full" /> : null
+                        }
+                      </button>
+                      <span className="text-[10px] font-medium text-neutral-400">{selectedVehicles.length} de {vehicles.length} seleccionados</span>
+                    </div>
+                    {filteredFleetForCheckboxes.map(vehicle => (
+                      <div key={vehicle.id} className="flex items-center gap-2.5 py-1.5 hover:bg-neutral-50 cursor-pointer px-1 rounded-md" onClick={() => toggleVehicle(vehicle.id)}>
+                        <div className={cn('w-4 h-4 rounded flex items-center justify-center border transition-colors shrink-0', selectedVehicles.includes(vehicle.id) ? 'bg-brand border-brand' : 'bg-white border-neutral-300')}>
+                          {selectedVehicles.includes(vehicle.id) && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+                        </div>
+                        <span className="text-[12px] font-medium text-neutral-700 truncate">{vehicle.plate} <span className="text-neutral-400 font-normal">· {vehicle.name}</span></span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2 pt-2 border-t border-neutral-100 sticky bottom-0 bg-white pb-2">
+                    <button onClick={() => { clearFilters(); setShowFilters(false); }} className="flex-1 py-2 rounded-md text-[12px] font-medium text-neutral-700 bg-white border border-neutral-200 hover:bg-neutral-50 transition-colors">Limpiar</button>
+                    <button onClick={() => setShowFilters(false)} className="flex-1 py-2 rounded-md text-[12px] font-medium text-white bg-neutral-900 hover:bg-neutral-800 transition-colors">Aplicar</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {pinnedFleet.length > 0 && (
+                    <div className={cn('sticky top-0 z-[60] border-b overflow-visible transition-colors duration-200', isDark ? 'bg-neutral-900 border-neutral-800' : 'bg-neutral-50 border-neutral-100')}>
+                      {pinnedFleet.map(vehicle => (
+                        <VehicleAccordionItem
+                          key={vehicle.id}
+                          vehicle={vehicle}
+                          isExpanded={selectedVehicleId === vehicle.id}
+                          onToggle={() => handleToggleVehicle(vehicle.id)}
+                          onShowToast={setToastMessage}
+                          userRole={userRole}
+                          profile={profile}
+                          isPinned={true}
+                          onTogglePin={() => togglePin(vehicle.id)}
+                          onFlyTo={() => flyTo(vehicle.position as [number, number])}
+                          isDark={isDark}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <div className={pinnedFleet.length > 0 ? 'pt-2' : ''}>
+                    {unpinnedFleet.map(vehicle => (
+                      <VehicleAccordionItem
+                        key={vehicle.id}
+                        vehicle={vehicle}
+                        isExpanded={selectedVehicleId === vehicle.id}
+                        onToggle={() => handleToggleVehicle(vehicle.id)}
+                        onShowToast={setToastMessage}
+                        userRole={userRole}
+                        profile={profile}
+                        isPinned={false}
+                        onTogglePin={() => togglePin(vehicle.id)}
+                        onFlyTo={() => flyTo(vehicle.position as [number, number])}
+                        isDark={isDark}
+                      />
+                    ))}
+                  </div>
+                  {visibleFleet.length === 0 && (
+                    <div className="py-8 text-center">
+                      <p className="text-[12px] text-neutral-400 font-medium">Sin resultados</p>
+                    </div>
+                  )}
+
+                  {/* Scroll hint — C-Loc */}
+                  <AnimatePresence>
+                    {showListScrollHint && (
+                      <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        transition={{ duration: 0.25 }}
+                        className="sticky bottom-0 left-0 right-0 flex flex-col items-center pointer-events-none"
+                      >
+                        <div className={cn('w-full h-5 bg-gradient-to-t to-transparent', isDark ? 'from-neutral-900 via-neutral-900/60' : 'from-neutral-50 via-neutral-50/60')} />
+                        <div className={cn('w-full flex justify-center pb-2', isDark ? 'bg-neutral-900' : 'bg-neutral-50')}>
+                          <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut' }}>
+                            <ChevronDown className="w-5 h-5 text-neutral-500" strokeWidth={2.5} />
+                          </motion.div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'viajes' && (
+          <div className="flex flex-col flex-1 items-center justify-center gap-2 text-neutral-300">
+            <Route className="w-8 h-8" strokeWidth={1.5} />
+            <p className="text-[12px] font-medium text-neutral-400">Próximamente</p>
+          </div>
+        )}
+
+        <Toast message={toastMessage} isVisible={!!toastMessage} onClose={() => setToastMessage('')} />
+      </div>
+    );
+  }
 
   return (
     <div className="absolute top-5 left-5 right-5 z-10 flex gap-4 items-start pointer-events-none">
@@ -141,7 +366,7 @@ export function FloatingStats({ profile = 'c-go', userRole = 'operator' }: { pro
               </div>
             </div>
             <div className="flex flex-col items-end">
-              <span className="text-[18px] font-bold text-slate-900 leading-none">{FLEET_DATA.length}</span>
+              <span className="text-[18px] font-bold text-slate-900 leading-none">{vehicles.length}</span>
               <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mt-0.5">Unidades</span>
             </div>
           </div>
@@ -261,15 +486,15 @@ export function FloatingStats({ profile = 'c-go', userRole = 'operator' }: { pro
                             </AnimatePresence>
 
                             <div className="flex items-center justify-between pb-2 mb-1 border-b border-gray-100/80 px-1 mt-1">
-                              <button onClick={toggleAll} className={cn('w-[20px] h-[20px] rounded-[6px] flex items-center justify-center border transition-colors shadow-sm', selectedVehicles.length === FLEET_DATA.length ? 'bg-brand border-brand' : 'bg-white border-gray-300 hover:border-gray-400')}>
-                                {selectedVehicles.length === FLEET_DATA.length
+                              <button onClick={toggleAll} className={cn('w-[20px] h-[20px] rounded-[6px] flex items-center justify-center border transition-colors shadow-sm', selectedVehicles.length === vehicles.length ? 'bg-brand border-brand' : 'bg-white border-gray-300 hover:border-gray-400')}>
+                                {selectedVehicles.length === vehicles.length
                                   ? <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
                                   : selectedVehicles.length > 0
                                     ? <div className="w-2.5 h-0.5 bg-brand rounded-full" />
                                     : null
                                 }
                               </button>
-                              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{selectedVehicles.length} de {FLEET_DATA.length} seleccionados</span>
+                              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">{selectedVehicles.length} de {vehicles.length} seleccionados</span>
                             </div>
                           </div>
 
@@ -306,11 +531,35 @@ export function FloatingStats({ profile = 'c-go', userRole = 'operator' }: { pro
                           onScroll={checkListScroll}
                           initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}
                           transition={{ duration: 0.2 }}
-                          className="flex flex-col overflow-y-auto scrollbar-hide flex-1 px-0.5 h-full [&::-webkit-scrollbar]:hidden"
+                          className="flex flex-col overflow-y-auto scrollbar-hide flex-1 px-0.5 h-full [&::-webkit-scrollbar]:hidden bg-white"
                           style={{ scrollbarWidth: 'none' }}
                         >
-                          <div className="pb-2 flex flex-col gap-0.5">
-                            {visibleFleet.map(vehicle => (
+                          {/* Sección fijada — sticky dentro del scroll */}
+                          {pinnedFleet.length > 0 && (
+                            <div className="sticky top-0 z-10 flex flex-col gap-0.5 pb-1 bg-white">
+                              {pinnedFleet.map(vehicle => (
+                                <VehicleAccordionItem
+                                  key={vehicle.id}
+                                  vehicle={vehicle}
+                                  isExpanded={selectedVehicleId === vehicle.id}
+                                  onToggle={() => handleToggleVehicle(vehicle.id)}
+                                  onShowToast={setToastMessage}
+                                  userRole={userRole}
+                                  profile={profile}
+                                  isPinned={true}
+                                  onTogglePin={() => togglePin(vehicle.id)}
+                                  onFlyTo={() => {
+                                    window.dispatchEvent(new CustomEvent('flyToVehicle', { detail: { position: vehicle.position, offsetX: 180 } }));
+                                  }}
+                                />
+                              ))}
+                              <div className="w-full h-px bg-brand/15 mt-0.5" />
+                            </div>
+                          )}
+
+                          {/* Sección regular — scrollable */}
+                          <div className="flex flex-col gap-0.5 pb-2 pt-0.5">
+                            {unpinnedFleet.map(vehicle => (
                               <VehicleAccordionItem
                                 key={vehicle.id}
                                 vehicle={vehicle}
@@ -319,8 +568,10 @@ export function FloatingStats({ profile = 'c-go', userRole = 'operator' }: { pro
                                 onShowToast={setToastMessage}
                                 userRole={userRole}
                                 profile={profile}
+                                isPinned={false}
+                                onTogglePin={() => togglePin(vehicle.id)}
                                 onFlyTo={() => {
-                                  window.dispatchEvent(new CustomEvent('flyToVehicle', { detail: { position: vehicle.position } }));
+                                  window.dispatchEvent(new CustomEvent('flyToVehicle', { detail: { position: vehicle.position, offsetX: 180 } }));
                                 }}
                               />
                             ))}
@@ -371,11 +622,11 @@ export function FloatingStats({ profile = 'c-go', userRole = 'operator' }: { pro
             className="flex gap-2 flex-wrap flex-1 max-w-4xl"
             style={{ pointerEvents: isMapMoving ? 'none' : undefined }}
           >
-            <StatCard icon={Activity}    value="2,450 km"  label="Distancia total"   iconColor="text-[#34C759]"    iconBg="bg-[#34C759]/10"    delay={0.1} />
-            <StatCard icon={Car}         value="142"       label="Viajes realizados" iconColor="text-blue-600"     iconBg="bg-blue-600/10"     delay={0.2} />
-            <StatCard icon={Clock}       value="42h 15m"   label="Tiempo recorrido"  iconColor="text-orange-500"   iconBg="bg-orange-500/10"   delay={0.3} />
-            <StatCard icon={Star}        value="4.92"      label="Calificación"      iconColor="text-amber-500"    iconBg="bg-amber-500/10"    delay={0.4} />
-            <StatCard icon={CreditCard}  value="S/ 485.50" label="Peajes y gastos"   iconColor="text-purple-500"   iconBg="bg-purple-500/10"   delay={0.5} />
+            <StatCard icon={Activity} value="2,450 km" label="Distancia total" iconColor="text-[#34C759]" iconBg="bg-[#34C759]/10" delay={0.1} />
+            <StatCard icon={Car} value="142" label="Viajes realizados" iconColor="text-blue-600" iconBg="bg-blue-600/10" delay={0.2} />
+            <StatCard icon={Clock} value="42h 15m" label="Tiempo recorrido" iconColor="text-orange-500" iconBg="bg-orange-500/10" delay={0.3} />
+            <StatCard icon={Star} value="4.92" label="Calificación" iconColor="text-amber-500" iconBg="bg-amber-500/10" delay={0.4} />
+            <StatCard icon={CreditCard} value="S/ 485.50" label="Peajes y gastos" iconColor="text-purple-500" iconBg="bg-purple-500/10" delay={0.5} />
           </motion.div>
         )}
       </AnimatePresence>

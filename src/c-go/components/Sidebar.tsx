@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Map, Truck, Wrench, Activity, FileText, Settings, Route, Hexagon, Users } from 'lucide-react';
+import { Map, Truck, Wrench, Activity, FileText, Settings, Route, Hexagon, Users, FlaskConical } from 'lucide-react';
 import { cn } from '../../shared/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -8,8 +8,9 @@ const MENU_ITEMS = [
   { id: 'fleet',      icon: Truck,    label: 'Flota'    },
   { id: 'management', icon: Wrench,   label: 'Gestión'  },
   { id: 'live',       icon: Activity, label: 'En vivo'  },
-  { id: 'reports',    icon: FileText, label: 'Informes' },
-  { id: 'profile',    icon: Settings, label: 'Perfil'   },
+  { id: 'reports',      icon: FileText,      label: 'Informes' },
+  { id: 'card-preview', icon: FlaskConical,  label: 'Preview'  },
+  { id: 'profile',      icon: Settings,      label: 'Perfil'   },
 ];
 
 const MANAGEMENT_ITEMS = [

@@ -6,7 +6,12 @@
       "PowerShell(cd \"C:\\\\Users\\\\emacalupu\\\\Documents\\\\Proyectos\\\\CLocater\\\\C-Locater\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -notmatch \"c-loc.components.Sidebar\" -and $_ -notmatch \"img.\\(logo|clo\\)\" })",
       "Bash(npx tsc *)",
       "Bash(grep -v \"c-loc\\\\\\\\\\\\\\\\components\\\\\\\\|img\\\\\\\\|Sidebar\")",
-      "Bash(del *)"
+      "Bash(del *)",
+      "Bash(npm install *)",
+      "Bash(npx vite *)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
+      "Bash(Select-String -Pattern \"RECAD\" \"C:\\\\Users\\\\emacalupu\\\\Documents\\\\Proyectos\\\\CLocater\\\\C-Locater\\\\src\\\\shared\\\\lib\\\\data.ts\")",
+      "Bash(Select-Object -First 5)"
     ]
   }
 }

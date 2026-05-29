@@ -22,7 +22,7 @@ export function HeaderCLoc({ onProfileChange, userRole, onRoleChange }: HeaderCL
   useEffect(() => {}, []);
 
   return (
-    <header className="h-16 bg-white border-b border-gray-200/60 flex items-center justify-end px-6 z-30 shrink-0 gap-4">
+    <header className="h-16 bg-white border-b border-neutral-100 flex items-center justify-end px-6 z-30 shrink-0 gap-4">
       <motion.button
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
