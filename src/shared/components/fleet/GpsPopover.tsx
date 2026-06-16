@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, ChevronRight, MoreVertical, X, Copy, Gauge, Compass, Activity, Battery, Bell, Power, LocateFixed } from 'lucide-react';
+import { ChevronDown, ChevronRight, MoreVertical, X, Copy, Gauge, Activity, Battery, Bell, Power, LocateFixed } from 'lucide-react';
 import { cn, formatLastSeen, formatLastSeenWithSecs } from '../../lib/utils';
 import type { UserRole } from '../../lib/utils';
 import type { Vehicle } from '../../lib/data';
@@ -14,13 +14,11 @@ interface GpsPopoverProps {
   triggerRef: React.RefObject<HTMLButtonElement>;
   onClose: () => void;
   userRole?: UserRole;
-  profile?: 'c-go' | 'c-loc';
   onShowToast: (msg: string) => void;
 }
 
-export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator', profile = 'c-go', onShowToast }: GpsPopoverProps) {
+export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator', onShowToast }: GpsPopoverProps) {
   const { isDark } = useTheme();
-  const isCloc = profile === 'c-loc';
   const [pos, setPos] = React.useState<{ top: number; left: number } | null>(null);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const [expandedItems, setExpandedItems] = React.useState<number[]>([]);
@@ -98,52 +96,31 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
     const popoverWidth = 300;
     const gap = 8;
 
-    if (profile === 'c-loc') {
-      const monitor = document.querySelector('[data-floating-monitor]');
-      const rect = monitor?.getBoundingClientRect();
-      const panelRight = rect?.right ?? 322;
-      const panelLeft  = rect?.left  ?? 16;
-      const panelTop   = rect?.top   ?? 16;
+    const monitor = document.querySelector('[data-floating-monitor]');
+    const rect = monitor?.getBoundingClientRect();
+    const panelRight = rect?.right ?? 322;
+    const panelLeft  = rect?.left  ?? 16;
+    const panelTop   = rect?.top   ?? 16;
 
-      let left = panelRight + gap;
-      if (left + popoverWidth > window.innerWidth - 20) {
-        left = Math.max(20, panelLeft - gap - popoverWidth);
-      }
-      let top = panelTop;
-      const popoverHeight = 420;
-      if (top + popoverHeight > window.innerHeight - 20) {
-        top = Math.max(panelTop, window.innerHeight - popoverHeight - 20);
-      }
-      setPos({ top, left });
-    } else {
-      const widerGap = 16;
-      const panel = document.querySelector('[data-vehicle-panel]');
-      const panelRect = panel?.getBoundingClientRect();
-      const panelRight = panelRect?.right ?? 380;
-      const panelTop   = panelRect?.top   ?? 84;
-      const statsRow   = document.querySelector('[data-stats-row]');
-      const top0 = statsRow ? statsRow.getBoundingClientRect().bottom + widerGap : panelTop;
-      let left = panelRight + widerGap;
-      let top  = top0;
-      if (left + 320 > window.innerWidth - 20) {
-        left = Math.max(panelRight + widerGap, window.innerWidth - 320 - 20);
-      }
-      const popoverHeight = 420;
-      if (top + popoverHeight > window.innerHeight - 20) {
-        top = Math.max(top0, window.innerHeight - popoverHeight - 20);
-      }
-      setPos({ top, left });
+    let left = panelRight + gap;
+    if (left + popoverWidth > window.innerWidth - 20) {
+      left = Math.max(20, panelLeft - gap - popoverWidth);
     }
-  }, [profile]);
+    let top = panelTop;
+    const popoverHeight = 420;
+    if (top + popoverHeight > window.innerHeight - 20) {
+      top = Math.max(panelTop, window.innerHeight - popoverHeight - 20);
+    }
+    setPos({ top, left });
+  }, []);
 
   React.useEffect(() => { calcPos(); }, [calcPos]);
 
   React.useEffect(() => {
-    if (profile !== 'c-loc') return;
     const handler = () => { setTimeout(calcPos, 250); };
     window.addEventListener('collapseSidebar', handler);
     return () => window.removeEventListener('collapseSidebar', handler);
-  }, [profile, calcPos]);
+  }, [calcPos]);
 
   React.useEffect(() => {
     const onStart = () => setMapMoving(true);
@@ -158,11 +135,7 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
 
   if (!pos) return null;
 
-  const devices = vehicle.gpsDevices
-    ? (profile === 'c-go' && userRole === 'operator'
-        ? vehicle.gpsDevices.filter(d => d.type !== 'contingencia')
-        : vehicle.gpsDevices)
-    : [];
+  const devices = vehicle.gpsDevices ?? [];
 
   return createPortal(
     <motion.div
@@ -175,22 +148,18 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
       onMouseDown={(e) => e.stopPropagation()}
       className={cn(
         'fixed z-[9999] border flex flex-col gap-3 overflow-hidden',
-        isCloc
-          ? cn('rounded-md p-3 shadow-[0_8px_32px_rgba(0,0,0,0.18)] backdrop-blur-2xl',
-              isDark ? 'bg-zinc-900/96 border-zinc-800' : 'bg-white/94 border-neutral-200/80')
-          : 'w-[320px] bg-white border-slate-200/80 rounded-xl shadow-[0_8px_30px_rgba(0,0,0,0.12)] p-4'
+        'rounded-md p-3 shadow-[0_8px_32px_rgba(0,0,0,0.18)] backdrop-blur-2xl',
+        isDark ? 'bg-zinc-900/96 border-zinc-800' : 'bg-white/94 border-neutral-200/80'
       )}
-      style={{ top: pos.top, left: pos.left, maxHeight: `calc(100vh - ${pos.top}px - 20px)`, width: isCloc ? 300 : 320, pointerEvents: mapMoving ? 'none' : undefined }}
+      style={{ top: pos.top, left: pos.left, maxHeight: `calc(100vh - ${pos.top}px - 20px)`, width: 300, pointerEvents: mapMoving ? 'none' : undefined }}
     >
-      <div className={cn('flex items-center justify-between shrink-0', isCloc ? 'px-1' : 'mb-1')}>
-        <span className={cn('text-[13px] font-bold', isCloc ? (isDark ? 'text-zinc-100' : 'text-neutral-800') : 'text-slate-800')}>Dispositivos GPS</span>
+      <div className={cn('flex items-center justify-between shrink-0 px-1')}>
+        <span className={cn('text-[13px] font-bold', isDark ? 'text-zinc-100' : 'text-neutral-800')}>Dispositivos GPS</span>
         <button
           onClick={onClose}
           className={cn(
             'w-6 h-6 flex items-center justify-center rounded-md transition-colors',
-            isCloc
-              ? (isDark ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100')
-              : 'w-7 h-7 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg'
+            isDark ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100'
           )}
         >
           <X className="w-3.5 h-3.5" />
@@ -208,36 +177,32 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
           const isExpanded  = expandedItems.includes(i);
           const isReporting = gpsDevice.reportStatus === 'reporting';
           const typeLabel   = gpsDevice.type === 'flotas' ? 'SVR Plus' : gpsDevice.type === 'basico' ? 'SVR Básico' : gpsDevice.type === 'contingencia' ? 'SVR Contingencia' : 'SVR X';
-          const clocDark    = isCloc && isDark;
           // Color del nombre del plan — blue-400 en dark (contraste ok sobre zinc-900)
           const typeLabelColor = isMain
-            ? (clocDark ? 'text-blue-400' : 'text-brand')
-            : (clocDark ? 'text-zinc-100' : 'text-slate-800');
+            ? (isDark ? 'text-blue-400' : 'text-brand')
+            : (isDark ? 'text-zinc-100' : 'text-slate-800');
           const suffixColor = isMain
-            ? (clocDark ? 'text-blue-400/70' : 'text-brand/70')
-            : (clocDark ? 'text-zinc-500'    : 'text-slate-400');
+            ? (isDark ? 'text-blue-400/70' : 'text-brand/70')
+            : (isDark ? 'text-zinc-500'    : 'text-slate-400');
           const signalIconColor = gpsDevice.reportStatus === 'reporting' ? 'text-emerald-500'
             : gpsDevice.reportStatus === 'low-signal'  ? 'text-orange-500'
             : gpsDevice.reportStatus === 'disconnected' ? 'text-red-500'
-            : clocDark ? 'text-zinc-500' : 'text-slate-400';
+            : isDark ? 'text-zinc-500' : 'text-slate-400';
           const esadStatus = userRole === 'esad' ? getEsadStatus(gpsDevice.reportStatus) : null;
-          const labelCls   = clocDark ? 'text-zinc-500' : 'text-slate-400';
-          const valueCls   = clocDark ? 'text-zinc-300' : 'text-slate-600';
-          const dividerCls = clocDark ? 'border-zinc-700' : 'border-slate-200';
+          const labelCls   = isDark ? 'text-zinc-500' : 'text-slate-400';
+          const valueCls   = isDark ? 'text-zinc-300' : 'text-slate-600';
+          const dividerCls = isDark ? 'border-zinc-700' : 'border-slate-200';
 
           return (
             <div
               key={i}
               className={cn(
-                'relative border transition-all',
-                isCloc ? 'rounded-md' : 'rounded-xl',
+                'relative border transition-all rounded-md',
                 isExpanded
                   ? isMain
-                    ? (isCloc ? (isDark ? 'border-blue-400/20 bg-zinc-800/60' : 'border-blue-200 bg-white') : 'border-brand/20 bg-white shadow-sm')
-                    : (isCloc ? (isDark ? 'border-zinc-700 bg-zinc-800/60' : 'border-neutral-200 bg-white') : 'border-slate-200 bg-white shadow-sm')
-                  : isCloc
-                    ? (isDark ? 'border-transparent hover:border-zinc-700 hover:bg-zinc-800/40' : 'border-transparent hover:border-neutral-200')
-                    : 'border-transparent bg-white hover:border-slate-200 hover:shadow-sm'
+                    ? (isDark ? 'border-blue-400/20 bg-zinc-800/60' : 'border-blue-200 bg-white')
+                    : (isDark ? 'border-zinc-700 bg-zinc-800/60' : 'border-neutral-200 bg-white')
+                  : (isDark ? 'border-transparent hover:border-zinc-700 hover:bg-zinc-800/40' : 'border-transparent hover:border-neutral-200')
               )}
             >
               {/* Header row — pr-20 deja espacio para los botones absolutos */}
@@ -255,12 +220,12 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
 
                     {/* Fila 2: Fecha y hora del último reporte */}
                     {isAdminOrEsad && (
-                      <span className={cn('text-[10px] font-medium leading-none', isCloc && isDark ? 'text-zinc-500' : 'text-slate-400')}>
+                      <span className={cn('text-[10px] font-medium leading-none', isDark ? 'text-zinc-500' : 'text-slate-400')}>
                         {formatLastSeenWithSecs(gpsDevice.lastSeen)}
                       </span>
                     )}
                     {!isAdminOrEsad && userRole === 'operator' && (
-                      <span className={cn('text-[10px] font-medium leading-none', isCloc && isDark ? 'text-zinc-500' : 'text-slate-400')}>
+                      <span className={cn('text-[10px] font-medium leading-none', isDark ? 'text-zinc-500' : 'text-slate-400')}>
                         {formatLastSeen(gpsDevice.lastSeen)}
                       </span>
                     )}
@@ -282,7 +247,7 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
                           'text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1.5 shrink-0',
                           isReporting
                             ? 'text-emerald-500 bg-emerald-500/10'
-                            : clocDark ? 'text-zinc-500 bg-zinc-800' : 'text-slate-400 bg-slate-100'
+                            : isDark ? 'text-zinc-500 bg-zinc-800' : 'text-slate-400 bg-slate-100'
                         )}>
                           <span className="relative flex items-center justify-center w-3.5 h-3.5">
                             {isReporting && <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-50" />}
@@ -297,7 +262,7 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
                             'relative group text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0 cursor-default',
                             gpsDevice.ignition === 'on'
                               ? 'text-emerald-500 bg-emerald-500/10'
-                              : clocDark ? 'text-zinc-500 bg-zinc-800' : 'text-slate-400 bg-slate-100'
+                              : isDark ? 'text-zinc-500 bg-zinc-800' : 'text-slate-400 bg-slate-100'
                           )}
                         >
                           <Power className="w-2.5 h-2.5" />
@@ -354,27 +319,21 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
                 <button
                   onClick={() => toggleItem(i)}
                   className={cn(
-                    'flex items-center justify-center border transition-all',
-                    isCloc ? 'w-6 h-6 rounded-md' : 'w-7 h-7 rounded-lg',
-                    isCloc
-                      ? (isDark ? 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50')
-                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50',
+                    'flex items-center justify-center border transition-all w-6 h-6 rounded-md',
+                    isDark ? 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50',
                     isExpanded && 'rotate-180'
                   )}
                 >
-                  <ChevronDown className={isCloc ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
+                  <ChevronDown className="w-3.5 h-3.5" />
                 </button>
                 <div className="relative">
                   <button
                     ref={el => { menuButtonRefs.current[i] = el; }}
                     className={cn(
-                      'flex items-center justify-center border transition-colors',
-                      isCloc ? 'w-6 h-6 rounded-md' : 'w-7 h-7 rounded-lg bg-white',
+                      'flex items-center justify-center border transition-colors w-6 h-6 rounded-md',
                       openMenuIndex === i
                         ? 'border-brand/30 text-brand bg-brand/5'
-                        : isCloc
-                          ? (isDark ? 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50')
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                        : (isDark ? 'border-zinc-700 bg-zinc-800 text-zinc-400 hover:bg-zinc-700' : 'border-neutral-200 bg-white text-neutral-500 hover:bg-neutral-50')
                     )}
                     onClick={(e) => { e.stopPropagation(); setOpenMenuIndex(openMenuIndex === i ? null : i); }}
                   >
@@ -390,7 +349,6 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
                         gpsDevice={gpsDevice}
                         onShowToast={onShowToast}
                         userRole={userRole}
-                        profile={profile}
                       />
                     )}
                   </AnimatePresence>
@@ -407,9 +365,9 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
                     transition={{ duration: 0.2 }}
                     className="overflow-hidden"
                   >
-                    <div className={cn('px-3 pb-3 flex flex-col gap-2 pt-2 border-t', isCloc ? (isDark ? 'border-zinc-700' : 'border-neutral-100') : 'border-slate-100')}>
+                    <div className={cn('px-3 pb-3 flex flex-col gap-2 pt-2 border-t', isDark ? 'border-zinc-700' : 'border-neutral-100')}>
                       <div className="flex flex-col gap-1">
-                        <span className={cn('text-[11.5px] font-semibold leading-tight', isCloc && isDark ? 'text-zinc-200' : 'text-slate-800')}>{vehicle.address}</span>
+                        <span className={cn('text-[11.5px] font-semibold leading-tight', isDark ? 'text-zinc-200' : 'text-slate-800')}>{vehicle.address}</span>
                         <div className="relative">
                           <button
                             onClick={(e) => { e.stopPropagation(); copyText(`https://www.google.com/maps?q=${vehicle.coords}`, `coords-${i}`); }}
@@ -434,13 +392,6 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
                               { icon: Battery,  value: gpsDevice.fuel,               label: 'Batería',   isAlarm: false, colorClass: getBatteryColor(gpsDevice.fuel), colClass: 'flex-1' },
                               { icon: Bell,     value: String(gpsDevice.alarmCount), label: 'Eventos',   isAlarm: true,  colorClass: null as string | null, colClass: 'flex-1' },
                             ]
-                          : profile === 'c-go' && userRole === 'operator'
-                          ? [
-                              { icon: Gauge,    value: gpsDevice.speed,   label: 'Velocidad', isAlarm: false, colorClass: null as string | null, colClass: 'flex-1' },
-                              { icon: Compass,  value: vehicle.direction, label: 'Dirección', isAlarm: false, colorClass: null as string | null, colClass: 'flex-1' },
-                              { icon: Activity, value: vehicle.odometer,  label: 'Odómetro',  isAlarm: false, colorClass: null as string | null, colClass: 'flex-1' },
-                              { icon: Battery,  value: gpsDevice.fuel,    label: 'Batería',   isAlarm: false, colorClass: getBatteryColor(gpsDevice.fuel), colClass: 'flex-1' },
-                            ]
                           : [
                               { icon: Gauge,   value: gpsDevice.speed,              label: 'Velocidad', isAlarm: false, colorClass: null as string | null, colClass: 'flex-1' },
                               { icon: Battery, value: gpsDevice.fuel,               label: 'Batería',   isAlarm: false, colorClass: getBatteryColor(gpsDevice.fuel), colClass: 'flex-1' },
@@ -459,10 +410,10 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
                                   )}
                                 </div>
                               ) : (
-                                <stat.icon className={cn('w-3.5 h-3.5', stat.colorClass ?? (clocDark ? 'text-blue-400' : 'text-brand'))} strokeWidth={1.75} />
+                                <stat.icon className={cn('w-3.5 h-3.5', stat.colorClass ?? (isDark ? 'text-blue-400' : 'text-brand'))} strokeWidth={1.75} />
                               )}
                               <span className={cn('text-[11px] font-semibold tabular-nums',
-                                stat.isAlarm && Number(stat.value) > 0 ? 'text-orange-500' : stat.colorClass ?? (clocDark ? 'text-zinc-300' : 'text-slate-700')
+                                stat.isAlarm && Number(stat.value) > 0 ? 'text-orange-500' : stat.colorClass ?? (isDark ? 'text-zinc-300' : 'text-slate-700')
                               )}>
                                 {stat.isAlarm
                                   ? Number(stat.value) === 0 ? 'Sin eventos' : `${stat.value} eventos`
@@ -481,7 +432,7 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
                       {/* Grupo / Subgrupo — solo esad, debajo de métricas */}
 
                       {userRole === 'esad' && gpsDevice.groups && gpsDevice.groups.length > 0 && (
-                        <div className={cn('pt-2 border-t', clocDark ? 'border-zinc-700' : 'border-slate-100')}>
+                        <div className={cn('pt-2 border-t', isDark ? 'border-zinc-700' : 'border-slate-100')}>
                           <div className="flex flex-col gap-1.5">
                             {/* Encabezado: etiquetas de columna + flecha si hay múltiples */}
                             <button
@@ -528,7 +479,7 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
                                       <div key={gi} className="flex gap-3">
                                         <span className={cn('text-[11px] font-medium leading-snug flex-1', valueCls)}>{g.name}</span>
                                         <span className={cn('text-[11px] font-medium leading-snug flex-1', valueCls)}>
-                                          {g.subgroup ?? <span className={clocDark ? 'text-zinc-600' : 'text-slate-300'}>—</span>}
+                                          {g.subgroup ?? <span className={isDark ? 'text-zinc-600' : 'text-slate-300'}>—</span>}
                                         </span>
                                       </div>
                                     ))}
@@ -556,10 +507,10 @@ export function GpsPopover({ vehicle, triggerRef, onClose, userRole = 'operator'
             transition={{ duration: 0.25 }}
             className="absolute bottom-0 left-0 right-0 flex flex-col items-center pointer-events-none rounded-b-xl overflow-hidden"
           >
-            <div className={cn('w-full h-5 bg-gradient-to-t to-transparent', isCloc && isDark ? 'from-zinc-900 via-zinc-900/60' : 'from-white via-white/60')} />
-            <div className={cn('w-full flex justify-center pb-2', isCloc && isDark ? 'bg-zinc-900' : 'bg-white')}>
+            <div className={cn('w-full h-5 bg-gradient-to-t to-transparent', isDark ? 'from-zinc-900 via-zinc-900/60' : 'from-white via-white/60')} />
+            <div className={cn('w-full flex justify-center pb-2', isDark ? 'bg-zinc-900' : 'bg-white')}>
               <motion.div animate={{ y: [0, 6, 0] }} transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut' }}>
-                <ChevronDown className={cn('w-5 h-5', isCloc && isDark ? 'text-zinc-400' : 'text-slate-700')} strokeWidth={2.5} />
+                <ChevronDown className={cn('w-5 h-5', isDark ? 'text-zinc-400' : 'text-slate-700')} strokeWidth={2.5} />
               </motion.div>
             </div>
           </motion.div>

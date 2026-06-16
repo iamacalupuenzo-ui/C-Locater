@@ -20,4 +20,4 @@ export type { SelectOption } from './Select';
 export { Textarea } from './Textarea';
 export { Toast } from './Toast';
 export { UserMenu } from './UserMenu';
-export type { UserMenuUser, AppProfile } from './UserMenu';
+export type { UserMenuUser } from './UserMenu';

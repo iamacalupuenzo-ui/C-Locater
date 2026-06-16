@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ElementType } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Gauge, ChevronsDown, Zap, Navigation2, Clock, MapPin, X, Share2, Download, Check, ChevronDown } from 'lucide-react';
+import { Gauge, ChevronsDown, Zap, Navigation2, Clock, MapPin, X, Share2, Download, Check, ChevronDown, Filter } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Vehicle } from '../../lib/data';
 import { VehicleTrackingMap } from './VehicleTrackingMap';
@@ -30,7 +30,8 @@ interface VehicleTripViewProps {
 
 export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProps) {
   const [tripEvents, setTripEvents]         = useState<TripEventsPayload | null>(null);
-  const [activeEventType, setActiveType]    = useState<TripEventType | null>(null);
+  const [activeEventTypes, setActiveEventTypes] = useState<Set<TripEventType>>(new Set());
+  const [eventFilterOpen, setEventFilterOpen] = useState(false);
   const [selectedEventId, setSelectedEvent] = useState<string | null>(null);
   const [showScrollHint, setShowScrollHint] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
@@ -49,7 +50,8 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
     const handler = (e: Event) => {
       const payload = (e as CustomEvent<TripEventsPayload | null>).detail;
       setTripEvents(payload);
-      setActiveType(null);
+      setActiveEventTypes(new Set());
+      setEventFilterOpen(false);
       setSelectedEvent(null);
       setShowScrollHint(false);
     };
@@ -70,7 +72,7 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
     const handler = (e: Event) => {
       const { type, id, coords } = (e as CustomEvent<{ type: TripEventType; id: string; coords: [number, number] }>).detail;
       setSelectedEvent(id);
-      setActiveType(type);
+      setActiveEventTypes(new Set([type]));
       window.dispatchEvent(new CustomEvent('highlightEvent', { detail: { id, coords } }));
     };
     window.addEventListener('selectEventFromMap', handler);
@@ -89,13 +91,27 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
     const t = setTimeout(checkScroll, 80);
     el.addEventListener('scroll', checkScroll);
     return () => { clearTimeout(t); el.removeEventListener('scroll', checkScroll); };
-  }, [checkScroll, activeEventType, tripEvents]);
+  }, [checkScroll, activeEventTypes, tripEvents]);
 
-  const activeGroup = tripEvents?.groups.find(g => g.type === activeEventType);
+  const filteredInstances = useMemo(() => {
+    if (!tripEvents) return [];
+    const groups = activeEventTypes.size === 0
+      ? tripEvents.groups
+      : tripEvents.groups.filter(g => activeEventTypes.has(g.type));
+    return groups
+      .flatMap(g => g.instances.map(inst => ({ ...inst, groupType: g.type as TripEventType })))
+      .sort((a, b) => a.time.localeCompare(b.time));
+  }, [tripEvents, activeEventTypes]);
 
-  const allInstances = tripEvents?.groups.flatMap(g =>
-    g.instances.map(inst => ({ ...inst, groupType: g.type as TripEventType }))
-  ).sort((a, b) => a.time.localeCompare(b.time)) ?? [];
+  function toggleEventType(type: TripEventType) {
+    setActiveEventTypes(prev => {
+      const next = new Set(prev);
+      next.has(type) ? next.delete(type) : next.add(type);
+      return next;
+    });
+    setSelectedEvent(null);
+    window.dispatchEvent(new CustomEvent('clearEventHighlight'));
+  }
 
   // ─── Botones de mapa ───────────────────────────────────────────────────
   const [shareOk,          setShareOk]          = useState(false);
@@ -163,45 +179,102 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
                 </button>
               </div>
 
-              {/* Tabs de tipo de evento — grid 2×2 */}
-              <div className="grid grid-cols-2 gap-1 px-2 py-1.5 shrink-0">
-                {tripEvents.groups.map(group => {
-                  const cfg      = EVENT_CONFIG[group.type];
-                  const isActive = activeEventType === group.type;
-                  return (
-                    <button
-                      key={group.type}
-                      onClick={() => {
-                        setActiveType(isActive ? null : group.type);
-                        setSelectedEvent(null);
-                        window.dispatchEvent(new CustomEvent('clearEventHighlight'));
-                      }}
-                      className={cn(
-                        'flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium border transition-colors',
-                        isDark
-                          ? 'border-zinc-700/50 hover:border-zinc-600'
-                          : 'border-slate-200/60 hover:border-slate-300',
-                        isActive
-                          ? ''
-                          : isDark
-                            ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
-                            : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100',
-                      )}
-                      style={isActive ? { color: cfg.color, background: cfg.color + '14', borderColor: cfg.color + '40' } : {}}
-                    >
-                      <div className="flex items-center gap-1">
-                        <cfg.Icon size={12} strokeWidth={2} style={{ color: cfg.color }} />
-                        <span
-                          className="text-[11px] font-bold tabular-nums leading-none"
-                          style={{ color: isActive ? cfg.color : undefined }}
-                        >
-                          {group.instances.length}
-                        </span>
-                      </div>
-                      <span className="text-[11px] font-medium leading-tight">{cfg.shortLabel}</span>
-                    </button>
-                  );
-                })}
+              {/* Filtros — mismo estándar que la pestaña Viajes (Hoy/Todos/Fecha) */}
+              <div className="relative z-[60] px-1.5 py-2.5 shrink-0 flex items-center gap-1">
+                {/* Todos */}
+                <button
+                  onClick={() => { setActiveEventTypes(new Set()); setEventFilterOpen(false); setSelectedEvent(null); window.dispatchEvent(new CustomEvent('clearEventHighlight')); }}
+                  className={cn(
+                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] font-medium transition-colors',
+                    activeEventTypes.size === 0
+                      ? (isDark ? 'text-zinc-100 bg-zinc-800' : 'text-neutral-900 bg-neutral-100')
+                      : (isDark ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800' : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100/70'),
+                  )}
+                >
+                  <span>Todos</span>
+                </button>
+
+                {/* Filtrar — dropdown multi-selección */}
+                <div className="relative">
+                  <button
+                    onClick={() => setEventFilterOpen(p => !p)}
+                    className={cn(
+                      'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[12px] transition-colors',
+                      activeEventTypes.size > 0
+                        ? cn('font-bold', isDark ? 'text-zinc-100 bg-zinc-800' : 'text-neutral-900 bg-neutral-100')
+                        : cn('font-medium', isDark ? 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800' : 'text-neutral-500 hover:text-neutral-800 hover:bg-neutral-100/70'),
+                    )}
+                  >
+                    <Filter className="w-3.5 h-3.5 shrink-0" strokeWidth={2} />
+                    <span>{activeEventTypes.size > 0 ? `${String(activeEventTypes.size).padStart(2, '0')} Filtrar` : 'Filtrar'}</span>
+                    <ChevronDown className={cn('w-3 h-3 shrink-0 transition-transform', eventFilterOpen && 'rotate-180')} strokeWidth={2.5} />
+                  </button>
+
+                  <AnimatePresence>
+                    {eventFilterOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                        transition={{ duration: 0.12 }}
+                        style={{ width: 200 }}
+                        className={cn(
+                          'absolute top-full left-0 mt-1.5 z-20 rounded-md border shadow-[0_4px_12px_rgba(0,0,0,0.1)] p-1',
+                          isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-slate-200',
+                        )}
+                      >
+                        <div className={cn('px-2 py-1 text-[11px] font-medium', isDark ? 'text-zinc-500' : 'text-slate-400')}>
+                          Tipo de evento
+                        </div>
+
+                        {tripEvents.groups.map(group => {
+                          const cfg      = EVENT_CONFIG[group.type];
+                          const isChecked = activeEventTypes.has(group.type);
+                          return (
+                            <button
+                              key={group.type}
+                              onClick={() => toggleEventType(group.type)}
+                              className={cn(
+                                'flex items-center gap-2 w-full px-2 py-1.5 rounded-sm text-left transition-colors',
+                                isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-slate-700 hover:bg-slate-100',
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  'w-3.5 h-3.5 rounded-sm border flex items-center justify-center shrink-0',
+                                  isChecked ? 'border-transparent' : (isDark ? 'border-zinc-600' : 'border-slate-300'),
+                                )}
+                                style={isChecked ? { background: cfg.color } : {}}
+                              >
+                                {isChecked && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
+                              </span>
+                              <cfg.Icon size={12} strokeWidth={1.75} style={{ color: cfg.color }} className="shrink-0" />
+                              <span className="text-[12px] flex-1 whitespace-nowrap">{cfg.label}</span>
+                              <span className={cn('text-[11px] tabular-nums', isDark ? 'text-zinc-500' : 'text-slate-400')}>
+                                {group.instances.length}
+                              </span>
+                            </button>
+                          );
+                        })}
+
+                        {activeEventTypes.size > 0 && (
+                          <>
+                            <div className={cn('h-px my-1 -mx-1', isDark ? 'bg-zinc-700' : 'bg-slate-200')} />
+                            <button
+                              onClick={() => { setActiveEventTypes(new Set()); setSelectedEvent(null); window.dispatchEvent(new CustomEvent('clearEventHighlight')); }}
+                              className={cn(
+                                'w-full text-center px-2 py-1.5 rounded-sm text-[12px] font-medium transition-colors',
+                                isDark ? 'text-zinc-400 hover:bg-zinc-800' : 'text-slate-500 hover:bg-slate-100',
+                              )}
+                            >
+                              Limpiar filtros
+                            </button>
+                          </>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               </div>
 
               {/* Lista de instancias del tipo activo */}
@@ -213,14 +286,14 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
                 >
                   <AnimatePresence mode="wait">
                     <motion.div
-                      key={activeEventType ?? 'all'}
+                      key={Array.from(activeEventTypes).sort().join(',') || 'all'}
                       initial={{ opacity: 0, y: 4 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: 0.12 }}
                       className="flex flex-col gap-1.5 pb-6"
                     >
-                      {(activeGroup ? activeGroup.instances.map(inst => ({ ...inst, groupType: activeEventType! })) : allInstances).map(ev => {
+                      {filteredInstances.map(ev => {
                         const cfg = EVENT_CONFIG[ev.groupType];
                         const isSelected = selectedEventId === ev.id;
                         const sec = ev.time.length <= 5 ? String((parseInt(ev.id.slice(-1), 10) || 0) * 7 % 60).padStart(2, '0') : '';
@@ -235,7 +308,6 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
                                 window.dispatchEvent(new CustomEvent('refitRouteBounds'));
                               } else {
                                 setSelectedEvent(ev.id);
-                                setActiveType(ev.groupType);
                                 window.dispatchEvent(new CustomEvent('highlightEvent', { detail: { id: ev.id, coords: ev.coords } }));
                               }
                             }}
@@ -305,7 +377,7 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
           <VehicleTrackingMap
             vehicle={vehicle}
             isDark={isDark}
-            activeEventType={activeEventType}
+            activeEventTypes={activeEventTypes}
             eventGroups={tripEvents?.groups}
             backgroundRoutes={selectedTripId ? backgroundRoutes : undefined}
           />

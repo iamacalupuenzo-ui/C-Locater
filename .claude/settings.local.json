@@ -11,7 +11,16 @@
       "Bash(npx vite *)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173)",
       "Bash(Select-String -Pattern \"RECAD\" \"C:\\\\Users\\\\emacalupu\\\\Documents\\\\Proyectos\\\\CLocater\\\\C-Locater\\\\src\\\\shared\\\\lib\\\\data.ts\")",
-      "Bash(Select-Object -First 5)"
+      "Bash(Select-Object -First 5)",
+      "Bash(npx shadcn@latest add https://tweakcn.com/r/themes/amber-minimal.json --yes)",
+      "Bash(npx shadcn@latest init --help)",
+      "Bash(npx shadcn@latest init -t vite -b radix -y -f)",
+      "Bash(npx shadcn@latest init -t vite -b radix -y -f -p nova)",
+      "Bash(rm -f lib/utils.ts components/ui/button.tsx)",
+      "Bash(rmdir lib/ components/ui components)",
+      "Bash(grep -E \"^d.*\\(lib|components\\)$\")",
+      "Bash(npx shadcn@latest add https://tweakcn.com/r/themes/amber-minimal.json -y)",
+      "Bash(timeout 15 npm run build)"
     ]
   }
 }

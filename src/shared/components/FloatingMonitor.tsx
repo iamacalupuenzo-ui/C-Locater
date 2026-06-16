@@ -31,13 +31,12 @@ interface FloatingMonitorProps {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
-  profile: 'c-go' | 'c-loc';
   userRole: UserRole;
   isDark?: boolean;
   onSideChange?: (side: 'left' | 'right', width: number) => void;
 }
 
-export function FloatingMonitor({ isOpen, onToggle, onClose, profile, userRole, onSideChange }: FloatingMonitorProps) {
+export function FloatingMonitor({ isOpen, onToggle, onClose, userRole, onSideChange }: FloatingMonitorProps) {
   const { isDark } = useTheme();
   const vehicles = useVehicles();
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +60,28 @@ export function FloatingMonitor({ isOpen, onToggle, onClose, profile, userRole, 
 
   const PANEL_W_MAX = 306;
   const EDGE_GAP    = 16;
+
+  const flyTo = useCallback((position: [number, number]) => {
+    window.dispatchEvent(new CustomEvent('flyToVehicle', { detail: { position } }));
+  }, []);
+
+  const handleToggleVehicle = useCallback((id: string) => {
+    const expanding = selectedVehicleId !== id;
+    setSelectedVehicleId(expanding ? id : null);
+    if (expanding) {
+      setTimeout(() => {
+        document.getElementById(`vehicle-item-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    }
+  }, [selectedVehicleId]);
+
+  const togglePin = useCallback((id: string) => {
+    setPinnedVehicleIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
 
   const [panelW, setPanelW]         = useState(PANEL_W_MAX);
   const currentSideRef              = useRef<'left' | 'right'>('left');
@@ -108,9 +129,6 @@ export function FloatingMonitor({ isOpen, onToggle, onClose, profile, userRole, 
     snapTo(currentX > mid ? 'right' : 'left');
   }
 
-  const flyTo = (position: [number, number]) =>
-    window.dispatchEvent(new CustomEvent('flyToVehicle', { detail: { position } }));
-
   const filtered = vehicles.filter(v => {
     const matchesSearch = v.plate.toLowerCase().includes(searchQuery.toLowerCase()) ||
       v.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -122,24 +140,6 @@ export function FloatingMonitor({ isOpen, onToggle, onClose, profile, userRole, 
   const unpinned = filtered.filter(v => !pinnedVehicleIds.has(v.id));
   const results  = [...pinned, ...unpinned];
   resultsRef.current = results;
-
-  const handleToggleVehicle = (id: string) => {
-    const expanding = selectedVehicleId !== id;
-    setSelectedVehicleId(expanding ? id : null);
-    if (expanding) {
-      setTimeout(() => {
-        document.getElementById(`vehicle-item-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 150);
-    }
-  };
-
-  function togglePin(id: string) {
-    setPinnedVehicleIds(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
 
   const checkScroll = useCallback(() => {
     const el = listRef.current;
@@ -541,14 +541,13 @@ export function FloatingMonitor({ isOpen, onToggle, onClose, profile, userRole, 
                       <VehicleAccordionItem
                         vehicle={vehicle}
                         isExpanded={selectedVehicleId === vehicle.id}
-                        onToggle={() => handleToggleVehicle(vehicle.id)}
-                        onFlyTo={() => flyTo(vehicle.position as [number, number])}
+                        onToggle={handleToggleVehicle}
+                        onFlyTo={flyTo}
                         onShowToast={setToastMessage}
                         userRole={userRole}
-                        profile={profile}
                         highlighted={idx === highlightedIndex}
                         isPinned
-                        onTogglePin={() => togglePin(vehicle.id)}
+                        onTogglePin={togglePin}
                         isDark={isDark}
                       />
                     </div>
@@ -565,14 +564,13 @@ export function FloatingMonitor({ isOpen, onToggle, onClose, profile, userRole, 
                     <VehicleAccordionItem
                       vehicle={vehicle}
                       isExpanded={selectedVehicleId === vehicle.id}
-                      onToggle={() => handleToggleVehicle(vehicle.id)}
-                      onFlyTo={() => flyTo(vehicle.position as [number, number])}
+                      onToggle={handleToggleVehicle}
+                      onFlyTo={flyTo}
                       onShowToast={setToastMessage}
                       userRole={userRole}
-                      profile={profile}
                       highlighted={actualIdx === highlightedIndex}
                       isPinned={pinnedVehicleIds.has(vehicle.id)}
-                      onTogglePin={() => togglePin(vehicle.id)}
+                      onTogglePin={togglePin}
                       isDark={isDark}
                     />
                   </div>

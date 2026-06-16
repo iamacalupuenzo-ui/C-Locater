@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { motion } from 'motion/react';
-import { UserMenu, type AppProfile } from '../../shared/components/ui/UserMenu';
+import { UserMenu } from '../../shared/components/ui/UserMenu';
 import type { UserRole } from '../../shared/lib/utils';
 
 const CURRENT_USER = {
@@ -12,12 +12,11 @@ const CURRENT_USER = {
 };
 
 interface HeaderCLocProps {
-  onProfileChange: (p: AppProfile) => void;
   userRole: UserRole;
   onRoleChange: (r: UserRole) => void;
 }
 
-export function HeaderCLoc({ onProfileChange, userRole, onRoleChange }: HeaderCLocProps) {
+export function HeaderCLoc({ userRole, onRoleChange }: HeaderCLocProps) {
   // Reservado para accesos de teclado globales del perfil C-Loc
   useEffect(() => {}, []);
 
@@ -34,8 +33,6 @@ export function HeaderCLoc({ onProfileChange, userRole, onRoleChange }: HeaderCL
 
       <UserMenu
         user={CURRENT_USER}
-        profile="c-loc"
-        onProfileChange={onProfileChange}
         userRole={userRole}
         onRoleChange={onRoleChange}
       />

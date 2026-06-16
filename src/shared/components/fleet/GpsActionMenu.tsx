@@ -22,7 +22,6 @@ interface GpsActionMenuProps {
   gpsDevice: GpsDevice;
   onShowToast: (msg: string) => void;
   userRole?: UserRole;
-  profile?: 'c-go' | 'c-loc';
   onFlyTo?: () => void;
   onTrips?: () => void;
   onParqueo?: () => void;
@@ -33,19 +32,14 @@ interface GpsActionMenuProps {
 
 export function GpsActionMenu({
   triggerRef, onClose, vehicle, gpsName, gpsDevice, onShowToast,
-  userRole = 'admin', profile = 'c-go',
   onFlyTo, onTrips, onParqueo, onCommand, onTogglePin, isPinned = false,
 }: GpsActionMenuProps) {
   const { isDark } = useTheme();
-  const isCloc = profile === 'c-loc';
   const menuRef = React.useRef<HTMLDivElement>(null);
   const [pos, setPos] = React.useState<{ top: number; left: number; openUp: boolean } | null>(null);
 
-  const isOperatorCGo = profile === 'c-go' && userRole === 'operator';
   const hasPinOption = !!onTogglePin;
-  const menuHeight = isOperatorCGo
-    ? (hasPinOption ? 172 : 120)
-    : (hasPinOption ? 250 : 200);
+  const menuHeight = hasPinOption ? 250 : 200;
 
   const handleCopyInfo = () => {
     const lines = [
@@ -122,7 +116,6 @@ export function GpsActionMenu({
       onMouseDown={(e) => e.stopPropagation()}
     >
       {GPS_ACTIONS
-        .filter(a => !(isOperatorCGo && a.label === 'Comando'))
         .map(({ icon: Icon, label }) => {
           const handler =
             label === 'Ubicación' ? () => { onFlyTo?.(); onClose(); } :
@@ -137,15 +130,11 @@ export function GpsActionMenu({
             </button>
           );
         })}
-      {!isOperatorCGo && (
-        <>
-          <div className={dividerCls} />
-          <button onClick={handleCopyInfo} className={itemCls}>
-            <Copy className={iconCls} strokeWidth={1.75} />
-            <span className="text-[11px] font-medium">Copiar información</span>
-          </button>
-        </>
-      )}
+      <div className={dividerCls} />
+      <button onClick={handleCopyInfo} className={itemCls}>
+        <Copy className={iconCls} strokeWidth={1.75} />
+        <span className="text-[11px] font-medium">Copiar información</span>
+      </button>
       {hasPinOption && (
         <>
           <div className={dividerCls} />

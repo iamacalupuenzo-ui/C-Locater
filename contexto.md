@@ -1,7 +1,8 @@
 # Contexto del Proyecto CLocater
 
 > Documentación técnica completa para análisis y modificación del proyecto
-> Actualizado: 2026-05-23 (Sesión 24 — VehicleTrackingMap: chevrons eliminados, dashArray `14 10` route-flow. Rutas fantasma backgroundRoutes. Auto-cruce 21/05/2026. Zoom: ZoomLimiter fija minZoom = fitBounds_zoom - 2 (900ms post-animación), se resetea al desseleccionar viaje. Peso dinámico: lineWeight=2 zoom≥16 / 3 zoom≥14 / 4 menor, ghostWeight=lineWeight-1)
+> Actualizado: 2026-06-16 (Sesión 26 — **Eliminación completa de la plataforma C-Go**. Se borró `src/c-go/` y toda la lógica condicional `profile === 'c-go'` / `isCloc` / `AppProfile` en componentes shared: `VehicleAccordionItem`, `GpsBadgeTooltip`, `GpsPopover`, `GpsActionMenu`, `FleetMap`, `UserMenu`. El proyecto queda con una sola plataforma: **C-Loc**. Detalle completo en la sección 22. Cualquier mención a "C-Go", `profile` o `AppProfile` en secciones anteriores de este documento es **histórica** — se conserva como referencia de diseño pasado, pero ya no existe en el código)
+> Actualizado: 2026-06-16 (Sesión 25 — Panel "Eventos del viaje" en VehicleTripView: el grid 2×2 de tags por tipo de evento fue reemplazado por filtros "Todos" / "Filtrar" (dropdown multi-selección checkbox), siguiendo el estándar de filtros Hoy/Todos/Fecha de TripPanel. Estado `activeEventType: TripEventType | null` → `activeEventTypes: Set<TripEventType>` (vacío = sin filtro = todos). Propagado a VehicleTrackingMap (prop `activeEventTypes`, `EventMarkers`). Botón "Filtrar" muestra contador en negrita cuando hay filtros activos, ej. "02 Filtrar")
 
 ---
 
@@ -9,7 +10,7 @@
 
 Estas reglas fueron establecidas durante el desarrollo y deben respetarse en toda sesión:
 
-1. **Aislamiento por plataforma**: Cuando el usuario indica un cambio para C-Go, solo se toca `src/c-go/` y la lógica condicional `profile === 'c-go'` en shared. **Nunca modificar C-Loc por error de alcance**, y viceversa.
+1. ~~**Aislamiento por plataforma**~~ — **Obsoleto desde Sesión 26**: C-Go fue eliminado por completo. El proyecto es ahora mono-plataforma (C-Loc). Ya no existe `src/c-go/` ni la condicional `profile === 'c-go'`.
 2. **Documentar siempre**: Cada cambio de comportamiento, UX o dato va documentado en `definicion.md`. Cada cambio estructural va en `contexto.md`.
 3. **Preguntar antes de implementar UX**: Si el cambio involucra layout o decisión visual, validar con el usuario antes de ejecutar.
 4. **`definicion.md` es la fuente de verdad de producto**: Contiene decisiones de roles, visibilidad, textos y comportamientos por plataforma/rol.
@@ -24,12 +25,9 @@ Estas reglas fueron establecidas durante el desarrollo y deben respetarse en tod
 - **Tipo**: SPA (Single Page Application)
 - **Puerto**: 3000 (vite.config.ts)
 
-### Perfiles de la aplicación
+### Plataforma
 
-| Perfil | Tipo | Para quién | Layout |
-|--------|------|------------|--------|
-| **C-Go** | `'c-go'` | Operaciones / Conductores | Header top con logo · Sidebar 72px fijo |
-| **C-Loc** | `'c-loc'` | Monitoreo / Control | Sidebar expandible con logo · Header sin logo |
+Desde la Sesión 26 el proyecto tiene **una sola plataforma: C-Loc** (sidebar expandible con logo, sin header con logo). El concepto de perfil (`AppProfile` / `'c-go' | 'c-loc'`) fue eliminado del código — ver sección 22.
 
 ### Roles de usuario
 
@@ -51,12 +49,7 @@ Los roles son **internos al sistema**: en producción vendrán del token de sesi
 C:\Users\emacalupu\Documents\Proyectos\CLocater\
 └── C-Locater/
     ├── src/
-    │   ├── c-go/                        # Componentes exclusivos del perfil C-Go
-    │   │   └── components/
-    │   │       ├── Header.tsx           # HeaderCGo: logo + campana + UserMenu
-    │   │       └── Sidebar.tsx          # Sidebar: 72px fijo, íconos+label, submenú hover
-    │   │
-    │   ├── c-loc/                       # Componentes exclusivos del perfil C-Loc
+    │   ├── c-loc/                       # Componentes de la plataforma C-Loc (única plataforma)
     │   │   └── components/
     │   │       ├── Header.tsx           # HeaderCLoc: solo campana + UserMenu
     │   │       └── Sidebar.tsx          # SidebarCLoc: expandible 224px↔72px, logo propio
@@ -79,7 +72,7 @@ C:\Users\emacalupu\Documents\Proyectos\CLocater\
     │   │   │   │   ├── IconButton.tsx
     │   │   │   │   ├── SegmentedControl.tsx
     │   │   │   │   ├── Toast.tsx
-    │   │   │   │   └── UserMenu.tsx     # Switcher de perfil + rol
+    │   │   │   │   └── UserMenu.tsx     # Switcher de rol (switcher de perfil eliminado en Sesión 26)
     │   │   │   ├── fleet/               # Sub-componentes del monitor de flota
     │   │   │   │   ├── fleetUtils.ts        # getBatteryColor()
     │   │   │   │   ├── StatCard.tsx         # Tarjeta de métricas superiores
@@ -89,13 +82,13 @@ C:\Users\emacalupu\Documents\Proyectos\CLocater\
     │   │   │   │   ├── GpsPopover.tsx       # Panel de dispositivos GPS
     │   │   │   │   └── VehicleAccordionItem.tsx  # Tarjeta acordeón de vehículo
     │   │   │   ├── FleetMap.tsx
-    │   │   │   ├── FloatingMonitor.tsx  # Panel flotante draggable de búsqueda + lista
-    │   │   │   ├── FloatingStats.tsx    # StatCards (C-Go) — orquestador legacy
+    │   │   │   ├── FloatingMonitor.tsx  # Panel flotante draggable de búsqueda + lista (reemplazó a FloatingStats.tsx, eliminado en sesiones previas)
+    │   │   │   ├── PeajesPanel.tsx      # Panel de peajes (rol client)
+    │   │   │   ├── VehicleTabBar.tsx    # Barra de pestañas (vehículos capturados / en viaje)
+    │   │   │   ├── vehicle-detail/      # VehicleCaptureView, VehicleTripView y sub-componentes
     │   │   │   ├── AIAssistant.tsx      # Asistente de voz IA (Groq Whisper + LLM)
     │   │   │   ├── CaminosModule.tsx
-    │   │   │   ├── NuevoGrupoModule.tsx
-    │   │   │   ├── CardPreviewModule.tsx  # [dev] Preview visual de VehicleAccordionItem
-    │   │   │   └── HistorialModule.tsx    # [dev] Changelog filtrable por componente
+    │   │   │   └── NuevoGrupoModule.tsx
     │   │   └── lib/
     │   │       ├── data.ts              # Vehicle + GpsDevice types · FLEET_DATA · RUTAS_DATA
     │   │       ├── utils.ts             # cn(), UserRole (admin|esad|operator|client), formatLastSeen*
@@ -107,11 +100,10 @@ C:\Users\emacalupu\Documents\Proyectos\CLocater\
     │   │       └── fleetKnowledge.ts    # Base de conocimiento del dominio para el agente IA
     │   │
     │   ├── img/
-    │   │   ├── logo.png                 # Logo C-Go (HeaderCGo)
     │   │   ├── logo2.png                # Logo C-Loc expandido (SidebarCLoc)
     │   │   └── clo-peque.png            # Logo C-Loc colapsado (SidebarCLoc)
     │   │
-    │   ├── App.tsx                      # Orquestador: perfil + rol + vista activa
+    │   ├── App.tsx                      # Orquestador: rol + vista activa (sin perfil desde Sesión 26)
     │   ├── main.tsx
     │   └── index.css
     │
@@ -143,16 +135,21 @@ C:\Users\emacalupu\Documents\Proyectos\CLocater\
 
 ### 4.1 Orquestador — `App.tsx`
 
-**Estado actual:**
+**Estado actual (sin `profile` desde Sesión 26):**
 ```typescript
 const [activeView, setActiveView]           = useState('explore');
-const [profile, setProfile]                 = useState<AppProfile>('c-go');
 const [userRole, setUserRole]               = useState<UserRole>('esad');
 const [showMonitor, setShowMonitor]         = useState(false);
 const [isDark, setIsDark]                   = useState(false);
 const [monitorSide, setMonitorSide]         = useState<'left' | 'right'>('left');
 const [monitorW, setMonitorW]               = useState(306);
 const [showStats, setShowStats]             = useState(true);
+const [showPeajesPanel, setShowPeajesPanel] = useState(false);
+const [capturedVehicles, setCapturedVehicles] = useState<Vehicle[]>([]);
+const [activeCaptureId, setActiveCaptureId] = useState<string | null>(null);
+const [tripVehicles, setTripVehicles]       = useState<Vehicle[]>([]);
+const [activeTripId, setActiveTripId]       = useState<string | null>(null);
+const [mapMoving, setMapMoving]             = useState(false);
 const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
 // Tooltip del botón de métricas
 const [showMetricsTooltip, setShowMetricsTooltip] = useState(false);
@@ -166,98 +163,62 @@ const [metricsTooltipPos, setMetricsTooltipPos] = useState<{ top: number; left: 
   - Generales: `148,000 km · 3,842 viajes · 2,640h · 4.87 · S/ 12,480.00`
   - Por vehículo: derivadas de `v.odometer` y `parseInt(id)`
 
-**Atajos de teclado (solo `profile === 'c-loc'`):**
-- `Ctrl+B`: abre monitor; si ya está abierto, despacha `focusMonitorSearch` para re-enfocar input
-- `Ctrl+M`: toggle `showStats` (muestra/oculta StatCards)
+**Atajos de teclado:**
+- `Ctrl+B`: abre el monitor (`FloatingMonitor`); si ya está abierto, despacha `focusMonitorSearch` para re-enfocar el input
+- `Ctrl+M`: toggle `showStats` (muestra/oculta las StatCards del rol `client`)
 
 **Botón de métricas:**
-- Posición: `right: 16` cuando monitor está a la izquierda; `left: 16` cuando está a la derecha
-- Se oculta al mover el mapa: `opacity: mapMoving ? 0 : 1` via `mapMoving` state (mismo listener en `App.tsx`)
+- Posición: `right: 16` cuando el monitor está a la izquierda; `left: 16` cuando está a la derecha
+- Se oculta al mover el mapa: `opacity: mapMoving ? 0 : 1` vía `mapMoving` state (escucha `mapMoveStart`/`mapMoveEnd`)
 
-**Panel Peajes (`PeajesPanel`):**
-- Se abre/cierra al hacer click en la StatCard "Peajes" (`onClick` + `active` props en `StatCard`)
-- Posición: `absolute top-[60px] right: 52` — justo debajo de las StatCards, a la izquierda del botón de métricas (`right: 16` + 32px ancho = ocupa hasta `right: 48`; panel a `right: 52` deja 4px de separación)
-- Estructura: header con ícono + título + X · sección "Costos por viaje" · 3 ítems:
-  1. **Monto**: valor total de peajes (no expandible)
-  2. **Costo de combustible (20%)**: expandible → muestra equivalente calculado (20% del monto)
-  3. **Costo de mantenimiento (S/ 30.00)**: expandible → muestra S/ 30 × viajes = total
-- Misma lógica de ocultamiento: `animate={{ opacity: mapMoving ? 0 : 1 }}`
-- `StatCard` recibe `onClick?: () => void` y `active?: boolean` (borde purple cuando activa)
-- Estilo: fondo negro `rgba(17,24,39,0.88)`, 3 barras blancas animadas (`scaleY`)
-- Tooltip via `createPortal`: posición calculada desde `getBoundingClientRect()`, muestra `[Ctrl][M]`
-- Solo visible para `userRole === 'client'`
+**StatCards + Panel Peajes (solo `userRole === 'client'`):**
+- 5 `StatCard` (Distancia, Viajes, Tiempo, Calificación, Peajes) renderizadas directamente en `App.tsx`, alimentadas por `clientMetrics`
+- Click en la StatCard "Peajes" → toggle de `<PeajesPanel>` (`peajes`, `viajes`, `mapMoving`, `onClose`)
+- Misma lógica de ocultamiento por movimiento de mapa que el resto de overlays
+
+**Vistas que reemplazan el mapa (`activeTripId` / `activeCaptureId`):**
+- `activeTripId` tiene prioridad → renderiza `VehicleTripView` (vista de viaje, pantalla completa)
+- si no, `activeCaptureId` → renderiza `VehicleCaptureView`
+- si ninguno, se renderiza `activeView` normal (`explore` con `FleetMap` + `FloatingMonitor`, o `caminos` con `CaminosModule`)
+- `VehicleTabBar` (×2: viajes y capturas) permite cambiar entre vehículos abiertos sin perder el resto de pestañas
 
 **Props que pasa a hijos:**
 - `FleetMap` → `monitorSide`, `monitorW`
-- `FloatingMonitor` → `isOpen`, `onToggle`, `onClose`, `profile`, `userRole`, `isDark`, `onSideChange`
-- `FloatingStats` → `profile`, `userRole`
+- `FloatingMonitor` → `isOpen`, `onToggle`, `onClose`, `userRole`, `isDark`, `onSideChange`
+- `SidebarCLoc` → `activeView`, `onViewChange`, `userRole`, `isDark`, `onToggleDark`, `user`, `onLogout`, `onRoleChange`
 
-**Layouts:**
+**Layout (única plataforma — sidebar izq + main, sin header propio):**
 ```tsx
-// C-Loc: sidebar izq + main (sin header)
-<VehicleProvider>
-  <div className="flex w-full h-screen">
-    <SidebarCLoc ... />
-    <div className="flex flex-col flex-1">
-      <main>
-        {activeView === 'explore' && (
-          <>
-            <FleetMap monitorSide={monitorSide} monitorW={monitorW} />
-            <FloatingMonitor ... />
-            {userRole === 'client' && <>StatCards + toggle button + tooltip</>}
-          </>
-        )}
-        {activeView === 'caminos' && <CaminosModule />}
-      </main>
+<ThemeContext.Provider value={{ isDark }}>
+  <VehicleProvider>
+    <div className="flex w-full h-screen">
+      <SidebarCLoc activeView={activeView} onViewChange={setActiveView} userRole={userRole} ... />
+      <div className="flex flex-col flex-1">
+        <main>
+          {activeTripId ? <VehicleTripView ... />
+            : activeCaptureId ? <VehicleCaptureView ... />
+            : <>
+                {activeView === 'explore' && (
+                  <>
+                    <FleetMap monitorSide={monitorSide} monitorW={monitorW} />
+                    <FloatingMonitor isOpen={showMonitor} userRole={userRole} ... />
+                    {userRole === 'client' && <>StatCards + botón toggle + tooltip + PeajesPanel</>}
+                  </>
+                )}
+                {activeView === 'caminos' && <CaminosModule />}
+              </>}
+        </main>
+        <VehicleTabBar tabs={tripVehicles} label="Viajes" ... />
+        <VehicleTabBar tabs={capturedVehicles} label="Captura" ... />
+      </div>
     </div>
-  </div>
-</VehicleProvider>
-
-// C-Go: (header) + (sidebar + main)
-<div className="flex flex-col w-full h-screen">
-  <HeaderCGo onProfileChange={setProfile} userRole={userRole} onRoleChange={setUserRole} />
-  <div className="flex flex-1">
-    <Sidebar ... />
-    <main>...</main>
-  </div>
-</div>
+  </VehicleProvider>
+</ThemeContext.Provider>
 ```
 
 ---
 
-### 4.2 Perfil C-Go
-
-#### `src/c-go/components/Header.tsx` — `HeaderCGo`
-```typescript
-interface HeaderCGoProps {
-  onProfileChange: (p: AppProfile) => void;
-  userRole: UserRole;
-  onRoleChange: (r: UserRole) => void;
-}
-```
-- Logo `src/img/logo.png` a la izquierda
-- Campana + `UserMenu` a la derecha
-
-#### `src/c-go/components/Sidebar.tsx` — `Sidebar`
-- Ancho fijo `72px`
-- Ítems: Explorar, Flota, Gestión, En vivo, Informes, Perfil
-- Submenú "Gestión" en hover (popover lateral): Caminos, Geocercas, Conductores, Vehículos
-- Props: `activeView: string`, `onViewChange: (view: string) => void`
-
----
-
-### 4.3 Perfil C-Loc
-
-#### `src/c-loc/components/Header.tsx` — `HeaderCLoc`
-```typescript
-interface HeaderCLocProps {
-  onProfileChange: (p: AppProfile) => void;
-  userRole: UserRole;
-  onRoleChange: (r: UserRole) => void;
-}
-```
-- Sin logo (el logo está en el sidebar)
-- Campana + `UserMenu` alineados a la derecha
+### 4.2 Plataforma C-Loc (única)
 
 #### `src/c-loc/components/Sidebar.tsx` — `SidebarCLoc`
 - Ancho animado: `224px` ↔ `72px` (Framer Motion)
@@ -269,15 +230,13 @@ interface HeaderCLocProps {
 
 ---
 
-### 4.4 `UserMenu.tsx` — Switcher de Perfil y Rol
+### 4.4 `UserMenu.tsx` — Switcher de Rol
+
+> El switcher de plataforma (`AppProfile`, ícono `Monitor`) fue eliminado en la Sesión 26 junto con C-Go. `UserMenu` ahora solo maneja rol.
 
 ```typescript
-export type AppProfile = 'c-go' | 'c-loc';
-
 interface UserMenuProps {
   user: UserMenuUser;           // { name, role (display), initials, isAdmin }
-  profile: AppProfile;
-  onProfileChange: (p: AppProfile) => void;
   userRole: UserRole;
   onRoleChange: (r: UserRole) => void;
   onSettings?: () => void;
@@ -286,9 +245,8 @@ interface UserMenuProps {
 ```
 
 **Dropdown** (portal, solo visible con `isAdmin: true`):
-- Sección **"Cuenta"** con dos acordeones mutuamente excluyentes:
-  - **Plataforma** (ícono `Monitor`): switcher C-Go / C-Loc
-  - **Rol** (ícono `ShieldCheck`): switcher Administrador / Operador / Cliente
+- Sección **"Cuenta"** con un único acordeón:
+  - **Rol** (ícono `ShieldCheck`): switcher Administrador / ESAD / Concesionaria / Cliente Directo / Desarrollador
 - Configuración
 - Cerrar sesión
 
@@ -296,7 +254,9 @@ El label debajo del nombre en el trigger muestra el rol activo dinámicamente.
 
 ---
 
-### 4.5 `FloatingStats.tsx` — Panel de Monitoreo
+### 4.5 `FloatingStats.tsx` — Panel de Monitoreo [HISTÓRICO — archivo eliminado]
+
+> **`FloatingStats.tsx` ya no existe** (fue reemplazado por `FloatingMonitor.tsx` en una sesión anterior a la 26). Esta subsección se conserva como referencia histórica del diseño de roles/GPS, pero el `profile === 'c-go'` que aparece abajo nunca debe tomarse como código vigente. La lógica de GPS hoy vive sin prop `profile` en `GpsPopover.tsx`, `GpsActionMenu.tsx`, `GpsBadgeTooltip.tsx` y `VehicleAccordionItem.tsx` (ver sección 22).
 
 ```typescript
 export function FloatingStats({
@@ -527,14 +487,14 @@ cn("base-class", isActive && "active-class", className)
 | `flyToVehicle` | FloatingStats | FleetMap | `{ position: [lat, lng] }` |
 | `mapMoveStart` / `mapMoveEnd` | FleetMap | FloatingStats | — |
 
-### 7.3 Condicionales por perfil/rol
-```typescript
-// Por perfil (layout y textos)
-profile === 'c-go' ? 'Ignition ON' : 'Encendido'
+### 7.3 Condicionales por rol
 
+> Hasta la Sesión 25 existía también una condicional por perfil (`profile === 'c-go' ? ... : ...`). Fue eliminada en la Sesión 26 — solo queda condicional por rol.
+
+```typescript
 // Por rol (visibilidad de elementos)
 userRole === 'admin' && <ComponenteExclusivoAdmin />
-profile === 'c-go' && userRole !== 'admin' && <StatCards />
+userRole === 'client' && <StatCards />
 ```
 
 ### 7.4 Portales
@@ -556,14 +516,11 @@ text-brand / bg-brand  →  var(--brand: #0052CC)
 
 ## 8. Guía para Modificaciones
 
-### Cambio que afecta solo a C-Go
-- Si es de layout: editar `src/c-go/components/`
-- Si es en componente shared: usar condicional `profile === 'c-go'`
-- **Nunca tocar** `src/c-loc/` ni el layout del perfil opuesto
+> Desde la Sesión 26 el proyecto es mono-plataforma. Las guías "Cambio que afecta solo a C-Go" y "Agregar nuevo perfil" fueron eliminadas — ya no aplican.
 
 ### Cambio que afecta solo a un rol
 - Usar condicional `userRole === 'admin'` (o el rol correspondiente)
-- El prop `userRole` llega desde `App.tsx` → Header → UserMenu (para cambio) y App → FloatingStats → VehicleAccordionItem (para renderizado)
+- El prop `userRole` llega desde `App.tsx` → `SidebarCLoc` → `UserMenu` (para cambio) y `App.tsx` → componentes de flota (para renderizado)
 
 ### Agregar nuevo rol
 1. Añadir a `UserRole` en `shared/lib/utils.ts`
@@ -571,19 +528,13 @@ text-brand / bg-brand  →  var(--brand: #0052CC)
 3. Agregar lógica condicional en los componentes afectados
 4. Documentar en `definicion.md`
 
-### Agregar nuevo perfil
-1. Añadir a `AppProfile` en `UserMenu.tsx`
-2. Crear `src/nuevo-perfil/components/Header.tsx` y `Sidebar.tsx`
-3. Añadir rama en `App.tsx`
-4. Añadir a `PROFILES` en `UserMenu.tsx`
-
 ### Agregar vista nueva
 1. Crear en `src/shared/components/NuevaVista.tsx`
-2. En `App.tsx`: `{activeView === 'nueva-vista' && <NuevaVista />}` en ambos layouts
-3. Agregar ítem al Sidebar del perfil correspondiente
+2. En `App.tsx`: `{activeView === 'nueva-vista' && <NuevaVista />}`
+3. Agregar ítem al `SidebarCLoc`
 
 ### Modificar métricas de telemetría por rol
-Editar el array condicional en `VehicleAccordionItem` dentro de `FloatingStats.tsx`:
+Editar el array condicional dentro de `VehicleAccordionItem.tsx` (`src/shared/components/fleet/`):
 ```typescript
 userRole === 'admin'
   ? [ Velocidad, Batería, Alarmas ]
@@ -614,7 +565,6 @@ userRole === 'admin'
 5. Estado global con `useState` + CustomEvents (sin Zustand/Context)
 6. Datos mock estáticos — sin backend real
 7. Vistas pendientes en C-Loc: Flota, En vivo, Informes, Geocercas, Conductores
-8. GPS Popover: etiquetas "Encendido/Apagado" no actualizadas para C-Go aún
 
 ---
 
@@ -623,7 +573,6 @@ userRole === 'admin'
 ### Imports frecuentes
 ```typescript
 // Tipos
-import type { AppProfile } from '../../shared/components/ui/UserMenu';
 import type { UserRole } from '../../shared/lib/utils';
 
 // Utilidades
@@ -636,7 +585,6 @@ import { FLEET_DATA, RUTAS_DATA } from '../lib/data';
 import { Button, Modal, Toast, UserMenu } from './ui';
 
 // Logos
-import logo     from '../../img/logo.png';
 import logo2    from '../../img/logo2.png';
 import logoPeque from '../../img/clo-peque.png';
 ```
@@ -645,13 +593,11 @@ import logoPeque from '../../img/clo-peque.png';
 
 | Tarea | Archivo principal |
 |-------|-------------------|
-| Cambiar lógica de perfil/rol | `src/App.tsx` |
-| Modificar switcher perfil/rol | `src/shared/components/ui/UserMenu.tsx` |
-| Header C-Go | `src/c-go/components/Header.tsx` |
-| Header C-Loc | `src/c-loc/components/Header.tsx` |
-| Sidebar C-Go | `src/c-go/components/Sidebar.tsx` |
+| Cambiar lógica de rol | `src/App.tsx` |
+| Modificar switcher de rol | `src/shared/components/ui/UserMenu.tsx` |
 | Sidebar C-Loc | `src/c-loc/components/Sidebar.tsx` |
-| Panel de monitoreo (roles, métricas) | `src/shared/components/FloatingStats.tsx` |
+| Panel de monitoreo / búsqueda | `src/shared/components/FloatingMonitor.tsx` |
+| Tarjeta de vehículo (acordeón, métricas, GPS) | `src/shared/components/fleet/VehicleAccordionItem.tsx` |
 | Mapa + marcadores + GPS multi-pos | `src/shared/components/FleetMap.tsx` |
 | Tipos y utilidades | `src/shared/lib/utils.ts` |
 | Datos de vehículos/rutas/GPS positions | `src/shared/lib/data.ts` |
@@ -662,10 +608,10 @@ import logoPeque from '../../img/clo-peque.png';
 
 ## 12. Notas para IA y Colaboradores
 
-- **Aislamiento de plataforma**: Un cambio pedido para C-Go no toca C-Loc, y viceversa. Usar condicionales `profile === 'c-go'` en shared, o tocar solo `src/c-go/`.
+- **Mono-plataforma desde Sesión 26**: ya no existe `AppProfile` ni `src/c-go/`. Todo el proyecto es C-Loc.
 - **Validar UX antes de implementar**: Si el cambio involucra layout, posicionamiento o decisión visual, consultar antes de ejecutar.
 - **Documentar en `definicion.md`**: Toda decisión de producto, rol o visibilidad queda registrada ahí.
-- **Tipado estricto**: Sin `any`. Props bien tipadas. Condicionales sobre `UserRole` y `AppProfile` son la base del sistema.
+- **Tipado estricto**: Sin `any`. Props bien tipadas. Condicionales sobre `UserRole` son la base del sistema.
 - **Sin comentarios innecesarios**: Solo cuando el WHY no es obvio.
 - **Portales**: Menús/modales/popovers siempre con `createPortal` + `position: fixed`.
 - **Roles internos**: `userRole` viene de `useState` en `App.tsx` hoy. Cuando llegue backend, se reemplaza por el valor del token — la lógica condicional en componentes no cambia.
@@ -817,11 +763,11 @@ createCustomIcon(
 - `bg-neutral-50` (mismo color que panel) para opacar las tarjetas que pasan por debajo
 - Separador inferior `border-b border-neutral-100` solo cuando hay ancladas
 
-### Toggle claro/oscuro — arquitectura (Sesión 10)
+### Toggle claro/oscuro — arquitectura (Sesión 10; `FloatingStats` y `clocDark` son históricos, ver Sesión 26 abajo)
 `isDark` vive en `App.tsx` y se pasa en cascada:
 - `SidebarCLoc` recibe `isDark` + `onToggleDark` como props (no tiene estado propio)
-- `FloatingStats` recibe `isDark` y aplica estilos al panel + pasa a `VehicleAccordionItem`
-- `VehicleAccordionItem` recibe `isDark`, calcula `clocDark = isCloc && isDark`
+- `FloatingMonitor` (sucesor de `FloatingStats`) lee `isDark` vía `ThemeContext`/`useTheme()` y aplica estilos al panel + pasa a `VehicleAccordionItem`
+- `VehicleAccordionItem` recibe `isDark` y lo usa directo (antes calculaba `clocDark = isCloc && isDark`; desde la Sesión 26 `isCloc` ya no existe — siempre es C-Loc)
 
 **Paleta oscura (c-loc)**:
 - Panel: `bg-neutral-800 border-neutral-700`
@@ -1000,7 +946,7 @@ La paleta `zinc` tiene un tono azul-gris sutil más cálido que `neutral`, consi
 | `FloatingMonitor.tsx` | Prop `isDark`; pill, panel, search, filtros, lista — todo zinc |
 | `FleetMap.tsx` | `useTheme()`; botones de zoom, card de vehículo, menú ⋮ — zinc |
 | `StatCard.tsx` | `useTheme()`; `bg-zinc-900/85 border-zinc-700/60`, textos zinc |
-| `VehicleAccordionItem.tsx` | `clocDark = isCloc && isDark`; todos `neutral-*` → `zinc-*` |
+| `VehicleAccordionItem.tsx` | usa `isDark` directo (antes `clocDark = isCloc && isDark`, simplificado en Sesión 26); todos `neutral-*` → `zinc-*` |
 | `SidebarCLoc.tsx` | Props `isDark` + `onToggleDark`; toggle sol/luna |
 
 ### Mapa oscuro
@@ -1028,7 +974,6 @@ interface FloatingMonitorProps {
   isOpen: boolean;
   onToggle: () => void;
   onClose: () => void;
-  profile: 'c-go' | 'c-loc';
   userRole: UserRole;
   isDark?: boolean;       // prop ignorada — lee de ThemeContext vía useTheme()
   onSideChange?: (side: 'left' | 'right', width: number) => void;
@@ -1180,5 +1125,54 @@ export async function fetchAllRoutes(
 **Parámetros OSRM:** `geometries=geojson&overview=full&alternatives=false&steps=false`
 
 **Uso:** `VehicleContext.tsx` llama `fetchAllRoutes(VEHICLE_PATHS)` al iniciar para reemplazar los waypoints rectos de `paths.ts` con geometrías que siguen las carreteras reales. Si la llamada falla (sin internet, OSRM caído), los vehículos animados siguen con las líneas rectas de `paths.ts` como fallback.
+
+---
+
+## 21. Panel "Eventos del viaje" — Filtros por tipo de evento (Sesión 25)
+
+**Archivo:** `src/shared/components/vehicle-detail/VehicleTripView.tsx`
+
+Al expandir un viaje en `TripPanel` y abrir sus eventos, el panel intermedio "Eventos del viaje" muestra un filtro por tipo de evento (`TripEventType`: `speeding | hard_braking | harsh_acceleration | sharp_turn`).
+
+**Antes:** grid 2×2 fijo de tags, uno por tipo — se rompía visualmente si la cantidad de tipos cambiaba.
+
+**Ahora:** dos pills, mismo estándar visual que los filtros Hoy/Todos/Fecha de `TripPanel`:
+- **Todos**: limpia el filtro (`activeEventTypes` vacío → se listan todos los tipos).
+- **Filtrar**: abre un dropdown (mismo patrón que el dropdown de Fecha) con checkboxes por tipo de evento — **multi-selección**. El texto del botón se mantiene fijo ("Filtrar"); cuando hay 1+ filtros activos, antepone el contador en negrita: `02 Filtrar`.
+
+**Estado:** `activeEventTypes: Set<TripEventType>` (antes `activeEventType: TripEventType | null`). Conjunto vacío = sin filtro = se muestran todos los eventos.
+
+**Propagación a mapa:** `VehicleTrackingMap` recibe la prop `activeEventTypes: Set<TripEventType>` (default `new Set()`) y la pasa a `EventMarkers`, que calcula `isActive = activeEventTypes.size === 0 || activeEventTypes.has(group.type)` para decidir el estilo (activo/dimido) de cada marcador en el mapa — los markers de tipos no incluidos en el filtro no se ocultan, se muestran atenuados.
+
+**Click en marcador del mapa (`selectEventFromMap`):** al hacer click en un evento desde el mapa, el filtro se reemplaza por `new Set([type])` (el tipo de ese evento) para asegurar que la instancia clickeada sea visible en la lista del panel.
+
+---
+
+## 22. Eliminación de la plataforma C-Go (Sesión 26)
+
+### Motivo
+Decisión del usuario: dejar de mantener dos plataformas (C-Go y C-Loc) y consolidar el proyecto en una sola — C-Loc. Instrucción literal: *"vamos a eliminar todo lo relacionado a c-go sin tocar o afectar c-loc, para quedarnos con un solo proyecto"*.
+
+### Alcance del cambio
+1. **Borrado de `src/c-go/`** completo (`Header.tsx` / `HeaderCGo`, `Sidebar.tsx`) y de la rama de layout C-Go en `App.tsx`.
+2. **Archivos huérfanos solo-C-Go eliminados** (componentes/recursos que solo existían para dar soporte a esa rama, incluido `src/img/logo.png`, sin más referencias en el código).
+3. **Quitado el prop `profile` / `AppProfile` y toda condicional `profile === 'c-go'` / `isCloc` / `clocDark`** de los componentes shared:
+   - `VehicleAccordionItem.tsx` — badge de ignición y visibilidad de telemetría simplificados a comportamiento único (antes condicionado a `profile`/`userRole`).
+   - `GpsBadgeTooltip.tsx` — quitado el prop `profile` y el guard `profile === 'c-go' && userRole === 'client'`.
+   - `GpsPopover.tsx` — quitado `profile`, `isCloc`, `clocDark`; colapsado el posicionamiento (`calcPos`) a la única lógica de anclaje a `[data-floating-monitor]`; eliminada la rama de telemetría exclusiva de operador C-Go y el filtrado de dispositivos `contingencia`.
+   - `GpsActionMenu.tsx` — quitado `profile`, `isCloc`, `isOperatorCGo`; el filtro de la acción "Comando" y el ocultamiento de "Copiar información" se eliminaron (ahora siempre visibles).
+   - `FleetMap.tsx` — `GpsBoundsUpdater` y `FleetMap` ya no reciben `profile`; el cálculo de bounds quedó con la única fórmula (la de C-Loc).
+4. **`UserMenu.tsx` simplificado**: se eliminó `export type AppProfile`, el array `PROFILES`, el estado `profileExpanded` y todo el bloque JSX del switcher de plataforma (ícono `Monitor`). El componente ahora solo expone el switcher de **Rol**. `ui/index.ts` ya no reexporta `AppProfile`.
+5. **`src/c-loc/components/Header.tsx` (`HeaderCLoc`)** — confirmado código muerto (no se importa desde ningún punto activo de la app; `App.tsx` solo usa `SidebarCLoc`). Se actualizó su firma para no romper el build (quitado `onProfileChange`/`AppProfile`), sin que esto afecte comportamiento ni apariencia de C-Loc en runtime.
+6. **`App.tsx`** — se detectó y corrigió una regresión real no relacionada (import faltante de `StatCard`, usado en 5 lugares del JSX) durante la verificación de build.
+
+### Verificación
+- `npx tsc --noEmit`: solo quedan errores **pre-existentes y no relacionados** (confirmado comparando contra el baseline con `git stash`): módulos de imagen no tipados y namespace `React` faltante en `Sidebar.tsx`/`main.tsx`/`PeajesPanel.tsx`/`TripStatsRow.tsx`/`VehicleTabBar.tsx`, más 3 errores de tipo `key` en `Sidebar.tsx`.
+- `npm run build` (vite): build exitoso, sin errores bloqueantes (solo el warning preexistente de tamaño de chunk).
+- Grep global de `profile|isCloc|clocDark|AppProfile|c-go` en `src/`: cero coincidencias fuera de comentarios/strings ya removidos.
+
+### Qué NO cambió
+- Ningún comportamiento, layout ni estilo visible de **C-Loc** fue alterado — todas las ramas condicionales colapsaron a la rama que ya correspondía a C-Loc.
+- `definicion.md` conserva sus secciones históricas sobre diferencias C-Go/C-Loc como registro de decisiones de producto pasadas; no se reescribió porque documenta decisiones ya tomadas, no el código vigente.
 
 *Fin del documento contexto.md*

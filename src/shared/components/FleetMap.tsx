@@ -354,7 +354,7 @@ function BoundsUpdater({ points }: { points?: [number, number][] }) {
   return null;
 }
 
-function GpsBoundsUpdater({ vehicleId, positions, profile = 'c-go', monitorW = 306 }: { vehicleId: string | null; positions: [number, number][]; profile?: 'c-go' | 'c-loc'; monitorW?: number }) {
+function GpsBoundsUpdater({ vehicleId, positions, monitorW = 306 }: { vehicleId: string | null; positions: [number, number][]; monitorW?: number }) {
   const map = useMap();
   const prevVehicleId = useRef<string | null>(null);
 
@@ -363,13 +363,9 @@ function GpsBoundsUpdater({ vehicleId, positions, profile = 'c-go', monitorW = 3
       prevVehicleId.current = vehicleId;
       const bounds = L.latLngBounds(positions);
       if (bounds.isValid()) {
-        if (profile === 'c-loc') {
-          // GpsPopover (~300px) aparece a la derecha del FloatingMonitor — dejar espacio visible a la derecha
-          const leftPad = monitorW + 16 + 300 + 24; // monitor + gap + popover + margen
-          map.fitBounds(bounds, { paddingTopLeft: [leftPad, 80], paddingBottomRight: [80, 80], maxZoom: 16 });
-        } else {
-          map.fitBounds(bounds, { padding: [110, 110], maxZoom: 16 });
-        }
+        // GpsPopover (~300px) aparece a la derecha del FloatingMonitor — dejar espacio visible a la derecha
+        const leftPad = monitorW + 16 + 300 + 24; // monitor + gap + popover + margen
+        map.fitBounds(bounds, { paddingTopLeft: [leftPad, 80], paddingBottomRight: [80, 80], maxZoom: 16 });
       }
     }
     if (!vehicleId) {
@@ -457,7 +453,6 @@ export function FleetMap({
   selectedRouteId,
   monitorSide = 'left',
   monitorW = 306,
-  profile = 'c-go',
 }: {
   isDrawingMode?: boolean;
   drawingPoints?: [number, number][];
@@ -466,7 +461,6 @@ export function FleetMap({
   selectedRouteId?: string | null;
   monitorSide?: 'left' | 'right';
   monitorW?: number;
-  profile?: 'c-go' | 'c-loc';
 } = {}) {
   const [mounted, setMounted] = useState(false);
   const [mapZoom, setMapZoom] = useState(15);
@@ -688,7 +682,7 @@ export function FleetMap({
       >
         <MapInstanceCapture mapRef={mapInstanceRef} />
         <BoundsUpdater points={drawingPoints?.length ? drawingPoints : selectedRoute?.coordinates} />
-        <GpsBoundsUpdater vehicleId={activeGpsDevices.length >= 2 ? gpsLayerVehicleId : null} positions={gpsPositions} profile={profile} monitorW={monitorW} />
+        <GpsBoundsUpdater vehicleId={activeGpsDevices.length >= 2 ? gpsLayerVehicleId : null} positions={gpsPositions} monitorW={monitorW} />
         <MapEvents
           onMapClick={onMapClick}
           isDrawingMode={isDrawingMode}

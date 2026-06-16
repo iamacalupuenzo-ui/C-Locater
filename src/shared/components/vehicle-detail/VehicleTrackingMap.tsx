@@ -290,11 +290,11 @@ function createClusterIcon(type: TripEventType, count: number, zoom = 15): L.Div
 // ─── EventMarkers — renderiza dentro del contexto de Leaflet ──────────────
 function EventMarkers({
   groups,
-  activeEventType,
+  activeEventTypes,
   zoom,
 }: {
   groups: TripEventGroup[];
-  activeEventType: TripEventType | null;
+  activeEventTypes: Set<TripEventType>;
   zoom: number;
 }) {
   const map = useMap();
@@ -319,7 +319,7 @@ function EventMarkers({
   return (
     <>
       {groups.flatMap(group => {
-        const isActive = !activeEventType || activeEventType === group.type;
+        const isActive = activeEventTypes.size === 0 || activeEventTypes.has(group.type);
         return clusterInstances(group.instances, zoom).map((cluster, i) => {
           const isCluster    = cluster.count > 3;
           const isHighlighted = !isCluster && cluster.instances.some(inst => inst.id === highlightedId);
@@ -415,12 +415,14 @@ function FitRouteBounds({ route, vehiclePos }: { route: TripRoute; vehiclePos: [
 interface VehicleTrackingMapProps {
   vehicle: Vehicle;
   isDark?: boolean;
-  activeEventType?: TripEventType | null;
+  activeEventTypes?: Set<TripEventType>;
   eventGroups?: TripEventGroup[];
   backgroundRoutes?: [number, number][][];
 }
 
-export function VehicleTrackingMap({ vehicle, isDark = false, activeEventType, eventGroups, backgroundRoutes }: VehicleTrackingMapProps) {
+const NO_EVENT_FILTER = new Set<TripEventType>();
+
+export function VehicleTrackingMap({ vehicle, isDark = false, activeEventTypes = NO_EVENT_FILTER, eventGroups, backgroundRoutes }: VehicleTrackingMapProps) {
   const [mounted, setMounted]     = useState(false);
   const [tripRoute, setTripRoute] = useState<TripRoute>(null);
   const [mapZoom, setMapZoom]     = useState(15);
@@ -522,7 +524,7 @@ export function VehicleTrackingMap({ vehicle, isDark = false, activeEventType, e
 
         {/* Markers de eventos con iconos SVG + clustering */}
         {eventGroups && eventGroups.length > 0 && (
-          <EventMarkers groups={eventGroups} activeEventType={activeEventType ?? null} zoom={mapZoom} />
+          <EventMarkers groups={eventGroups} activeEventTypes={activeEventTypes} zoom={mapZoom} />
         )}
       </MapContainer>
     </div>

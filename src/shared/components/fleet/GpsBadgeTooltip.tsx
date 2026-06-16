@@ -7,11 +7,10 @@ import type { Vehicle } from '../../lib/data';
 interface GpsBadgeTooltipProps {
   vehicle: Vehicle;
   userRole?: UserRole;
-  profile?: 'c-go' | 'c-loc';
   isDark?: boolean;
 }
 
-export function GpsBadgeTooltip({ vehicle, userRole = 'operator', profile = 'c-go', isDark = false }: GpsBadgeTooltipProps) {
+export function GpsBadgeTooltip({ vehicle, userRole = 'operator', isDark = false }: GpsBadgeTooltipProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const badgeRef = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -25,11 +24,7 @@ export function GpsBadgeTooltip({ vehicle, userRole = 'operator', profile = 'c-g
     }
   }, [showTooltip]);
 
-  if (profile === 'c-go' && userRole === 'client') return null;
-
-  const visibleCount = (profile === 'c-go' && userRole === 'operator')
-    ? (vehicle.gpsDevices?.filter(d => d.type !== 'contingencia').length ?? 0)
-    : (vehicle.gpsCount ?? 0);
+  const visibleCount = vehicle.gpsCount ?? 0;
 
   const isAdminOrEsad = userRole === 'admin' || userRole === 'esad';
   if (isAdminOrEsad ? visibleCount < 1 : visibleCount <= 1) return null;

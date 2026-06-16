@@ -85,20 +85,19 @@ function VehicleIcon({ type, className }: { type: string; className?: string }) 
 interface VehicleAccordionItemProps {
   vehicle: Vehicle;
   isExpanded: boolean;
-  onToggle: () => void;
-  onFlyTo: () => void;
+  onToggle: (vehicleId: string) => void;
+  onFlyTo: (position: [number, number]) => void;
   onShowToast: (msg: string) => void;
   userRole: UserRole;
-  profile: 'c-go' | 'c-loc';
   isPinned?: boolean;
-  onTogglePin?: () => void;
+  onTogglePin?: (vehicleId: string) => void;
   isDark?: boolean;
   highlighted?: boolean;
   key?: React.Key;
 }
 
 export function VehicleAccordionItem({
-  vehicle, isExpanded, onToggle, onFlyTo, onShowToast, userRole, profile,
+  vehicle, isExpanded, onToggle, onFlyTo, onShowToast, userRole,
   isPinned = false, onTogglePin, isDark = false, highlighted = false,
 }: VehicleAccordionItemProps) {
   const [showCommandModal, setShowCommandModal] = useState(false);
@@ -131,15 +130,11 @@ export function VehicleAccordionItem({
 
   const isAdminOrEsad = userRole === 'admin' || userRole === 'esad';
   const gpsStyle = getVehicleGpsStyle(vehicle, isDark);
-  const isCloc = profile === 'c-loc';
-  const clocDark = isCloc && isDark;
   // En dark mode el azul brand (#0052CC) tiene bajo contraste — se usa blue-400 (#60A5FA)
-  const brandCls   = clocDark ? 'text-blue-400'                          : 'text-brand';
-  const brandHover = clocDark ? 'hover:text-blue-400 hover:bg-blue-400/10' : 'hover:text-brand hover:bg-brand/5';
+  const brandCls   = isDark ? 'text-blue-400'                          : 'text-brand';
+  const brandHover = isDark ? 'hover:text-blue-400 hover:bg-blue-400/10' : 'hover:text-brand hover:bg-brand/5';
 
-  const visibleGpsCount = (profile === 'c-go' && userRole === 'operator')
-    ? (vehicle.gpsDevices?.filter(d => d.type !== 'contingencia').length ?? 0)
-    : (vehicle.gpsCount ?? 0);
+  const visibleGpsCount = vehicle.gpsCount ?? 0;
 
   const showGpsButton = visibleGpsCount > 0
     && userRole !== 'client'
@@ -163,48 +158,37 @@ export function VehicleAccordionItem({
     window.dispatchEvent(new CustomEvent('vehicleGpsLayerToggle', {
       detail: { vehicleId: showGpsPopover ? vehicle.id : null },
     }));
-    if (showGpsPopover && isCloc) {
+    if (showGpsPopover) {
       window.dispatchEvent(new CustomEvent('collapseSidebar'));
     }
-  }, [showGpsPopover, vehicle.id, isCloc]);
+  }, [showGpsPopover, vehicle.id]);
 
   return (
     <div
       id={`vehicle-item-${vehicle.id}`}
       className={cn(
-        isCloc ? 'relative flex flex-col transition-all' : 'relative flex flex-col transition-all overflow-hidden',
-        isCloc
-          ? cn('mx-3 mb-2 rounded-[10px] border transition-all',
-              isExpanded
-                ? (clocDark ? 'border-zinc-700 bg-zinc-800/60' : 'bg-white border-blue-200 shadow-[0_2px_12px_rgba(59,130,246,0.08)]')
-                : highlighted
-                  ? (clocDark ? 'border-zinc-700 bg-zinc-800/40' : 'bg-white border-blue-400')
-                  : (clocDark ? 'border-transparent hover:border-zinc-700 hover:bg-zinc-800/40' : 'bg-white border-transparent hover:border-blue-200'))
-          : cn('mb-2 bg-white/90 rounded-xl border',
-              isPinned
-                ? 'border-brand/30 shadow-[0_0_0_1px_rgba(59,130,246,0.08),0_2px_8px_rgba(0,0,0,0.04)]'
-                : isExpanded
-                  ? 'shadow-[0_4px_20px_rgba(0,0,0,0.06)] border-slate-200'
-                  : 'border-transparent hover:border-blue-200 hover:bg-white hover:shadow-[0_2px_8px_rgba(0,0,0,0.04)]'
-            )
+        'relative flex flex-col transition-all',
+        'mx-3 mb-2 rounded-[10px] border transition-all',
+        isExpanded
+          ? (isDark ? 'border-zinc-700 bg-zinc-800/60' : 'bg-white border-blue-200 shadow-[0_2px_12px_rgba(59,130,246,0.08)]')
+          : highlighted
+            ? (isDark ? 'border-zinc-700 bg-zinc-800/40' : 'bg-white border-blue-400')
+            : (isDark ? 'border-transparent hover:border-zinc-700 hover:bg-zinc-800/40' : 'bg-white border-transparent hover:border-blue-200'),
       )}
     >
-      {isPinned && !isCloc && (
-        <div className="absolute inset-y-0 left-0 w-[3px] bg-brand/50 z-10" />
-      )}
-      {isPinned && isCloc && (
-        <Pin className={cn('absolute top-2 right-2 w-3.5 h-3.5 z-10 rotate-45', clocDark ? 'text-zinc-200 fill-zinc-200' : 'text-neutral-900 fill-neutral-900')} />
+      {isPinned && (
+        <Pin className={cn('absolute top-2 right-2 w-3.5 h-3.5 z-10 rotate-45', isDark ? 'text-zinc-200 fill-zinc-200' : 'text-neutral-900 fill-neutral-900')} />
       )}
       {/* ZONA 1 — IDENTIDAD */}
       <div
-        className={cn('flex flex-col cursor-pointer group', isCloc ? 'py-3 px-3' : 'p-3')}
-        onClick={() => { if (!isEditingAlias) onToggle(); }}
+        className="flex flex-col cursor-pointer group py-3 px-3"
+        onClick={() => { if (!isEditingAlias) onToggle(vehicle.id); }}
       >
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2.5 flex-1 min-w-0 pr-3">
             {/* Ícono de vehículo — color según estado GPS principal */}
-            <div className={cn('border flex items-center justify-center relative shrink-0', isCloc ? 'w-[28px] h-[28px] rounded-lg' : 'w-[36px] h-[36px] rounded-[10px]', gpsStyle.bg, gpsStyle.border)}>
-              <VehicleIcon type={vehicle.type} className={cn(isCloc ? 'w-[14px] h-[14px]' : 'w-[18px] h-[18px]', gpsStyle.icon)} />
+            <div className={cn('border flex items-center justify-center relative shrink-0 w-[28px] h-[28px] rounded-lg', gpsStyle.bg, gpsStyle.border)}>
+              <VehicleIcon type={vehicle.type} className={cn('w-[14px] h-[14px]', gpsStyle.icon)} />
               {(userRole === 'esad' || userRole === 'client') ? (
                 <div className="absolute -top-2 -left-2">
                   <div className="relative w-4 h-4 flex items-center justify-center">
@@ -217,7 +201,7 @@ export function VehicleAccordionItem({
                   </div>
                 </div>
               ) : (
-                <GpsBadgeTooltip vehicle={vehicle} userRole={userRole} profile={profile} isDark={isDark} />
+                <GpsBadgeTooltip vehicle={vehicle} userRole={userRole} isDark={isDark} />
               )}
               <div className={cn(
                 'absolute -bottom-1.5 -right-1.5 w-4 h-4 rounded-full border-[1.5px] flex items-center justify-center shadow-sm group/ign cursor-default',
@@ -227,10 +211,7 @@ export function VehicleAccordionItem({
                 <Power className="w-2.5 h-2.5 text-white" />
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 opacity-0 group-hover/ign:opacity-100 translate-y-1 group-hover/ign:translate-y-0 transition-all duration-200 pointer-events-none z-[100]">
                   <div className="bg-slate-800 text-white text-[10px] font-medium px-2 py-1 rounded-md whitespace-nowrap shadow-lg">
-                    {vehicle.status === 'active'
-                      ? (profile === 'c-go' ? 'Ignition ON' : 'Encendido')
-                      : (profile === 'c-go' ? 'Ignition OFF' : 'Apagado')
-                    }
+                    {vehicle.status === 'active' ? 'Encendido' : 'Apagado'}
                   </div>
                   <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-slate-800" />
                 </div>
@@ -243,31 +224,31 @@ export function VehicleAccordionItem({
                 <div className="flex flex-col gap-1.5 min-w-0">
                   {/* esad — Línea 1: placa (o primeros 6 del engineCode) + engineCode completo al lado */}
                   <div className="flex items-baseline gap-1.5 min-w-0">
-                    <span className={cn('font-bold tracking-tight leading-none shrink-0', isCloc ? 'text-[13px]' : 'text-[14px]', clocDark ? 'text-zinc-50' : 'text-slate-900')}>
+                    <span className={cn('font-bold tracking-tight leading-none shrink-0', 'text-[13px]', isDark ? 'text-zinc-50' : 'text-slate-900')}>
                       {vehicle.plate ? vehicle.plate.replace(/-/g, '') : vehicle.engineCode.slice(0, 6)}
                     </span>
-                    <span className={cn('text-[10px] font-medium leading-none truncate', clocDark ? 'text-zinc-500' : 'text-slate-400')}>
+                    <span className={cn('text-[10px] font-medium leading-none truncate', isDark ? 'text-zinc-500' : 'text-slate-400')}>
                       {vehicle.engineCode}
                     </span>
                   </div>
                   {/* esad — Línea 2: fecha larga, siempre visible */}
-                  <span className={cn('text-[11px] font-medium leading-none whitespace-nowrap', clocDark ? 'text-zinc-400' : 'text-slate-500')}>
+                  <span className={cn('text-[11px] font-medium leading-none whitespace-nowrap', isDark ? 'text-zinc-400' : 'text-slate-500')}>
                     {formatLastSeenWithSecs(vehicle.lastSeen ?? '')}
                   </span>
                 </div>
               ) : userRole === 'admin' ? (
                 <>
                   {/* admin — Línea 1: placa sin guiones */}
-                  <div className={cn('font-bold tracking-tight leading-none truncate min-h-[24px]', isCloc ? 'text-[13px]' : 'text-[14px]', clocDark ? 'text-zinc-50' : 'text-slate-900')}>
+                  <div className={cn('font-bold tracking-tight leading-none truncate min-h-[24px]', 'text-[13px]', isDark ? 'text-zinc-50' : 'text-slate-900')}>
                     {(vehicle.plate || vehicle.engineCode).replace(/-/g, '')}
                   </div>
                   {/* admin — Línea 2: código de motor + fecha mini con segundos (colapsado) */}
                   <div className="flex items-center justify-between mt-0.5 min-h-[14px] gap-2">
-                    <span className={cn('text-[11px] font-medium leading-none min-w-0 truncate', clocDark ? 'text-zinc-400' : 'text-slate-500')}>
+                    <span className={cn('text-[11px] font-medium leading-none min-w-0 truncate', isDark ? 'text-zinc-400' : 'text-slate-500')}>
                       {vehicle.engineCode || vehicle.plate.replace(/-/g, '')}
                     </span>
                     {!isExpanded && (
-                      <span className={cn('text-[11px] font-medium leading-none shrink-0 whitespace-nowrap text-right', clocDark ? 'text-zinc-500' : 'text-slate-400')}>
+                      <span className={cn('text-[11px] font-medium leading-none shrink-0 whitespace-nowrap text-right', isDark ? 'text-zinc-500' : 'text-slate-400')}>
                         {formatLastSeenMiniSecs(vehicle.lastSeen ?? '')}
                       </span>
                     )}
@@ -285,21 +266,21 @@ export function VehicleAccordionItem({
                           onChange={(e) => setAliasValue(e.target.value)}
                           onBlur={() => setIsEditingAlias(false)}
                           onKeyDown={(e) => e.key === 'Enter' && setIsEditingAlias(false)}
-                          className={cn('text-[13px] font-bold tracking-tight leading-none rounded px-1 py-0.5 outline-none w-full max-w-[120px] border focus:ring-2', clocDark ? 'bg-zinc-600 border-blue-400/50 text-zinc-50 focus:ring-blue-400/20' : 'bg-white border-brand/50 text-slate-900 focus:ring-brand/20')}
+                          className={cn('text-[13px] font-bold tracking-tight leading-none rounded px-1 py-0.5 outline-none w-full max-w-[120px] border focus:ring-2', isDark ? 'bg-zinc-600 border-blue-400/50 text-zinc-50 focus:ring-blue-400/20' : 'bg-white border-brand/50 text-slate-900 focus:ring-brand/20')}
                         />
                       </div>
                     ) : (
                       <>
-                        <span className={cn('font-bold tracking-tight leading-none shrink-0', isCloc ? 'text-[13px]' : 'text-[14px]', clocDark ? 'text-zinc-50' : 'text-slate-900')}>
+                        <span className={cn('font-bold tracking-tight leading-none shrink-0', 'text-[13px]', isDark ? 'text-zinc-50' : 'text-slate-900')}>
                           {vehicle.plate ? vehicle.plate.replace(/-/g, '') : vehicle.engineCode.slice(0, 6)}
                         </span>
-                        <span className={cn('text-[10px] font-medium leading-none truncate', clocDark ? 'text-zinc-500' : 'text-slate-400')}>
+                        <span className={cn('text-[10px] font-medium leading-none truncate', isDark ? 'text-zinc-500' : 'text-slate-400')}>
                           {vehicle.engineCode}
                         </span>
                         {isExpanded && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setIsEditingAlias(true); }}
-                            className={cn('transition-colors p-0.5 rounded shrink-0', clocDark ? 'text-zinc-500 hover:text-blue-400 hover:bg-zinc-600' : 'text-slate-400 hover:text-brand hover:bg-slate-50')}
+                            className={cn('transition-colors p-0.5 rounded shrink-0', isDark ? 'text-zinc-500 hover:text-blue-400 hover:bg-zinc-600' : 'text-slate-400 hover:text-brand hover:bg-slate-50')}
                             title="Editar nombre"
                           >
                             <Pencil className="w-3 h-3" />
@@ -308,7 +289,7 @@ export function VehicleAccordionItem({
                       </>
                     )}
                   </div>
-                  <span className={cn('text-[11px] font-medium leading-none whitespace-nowrap', clocDark ? 'text-zinc-400' : 'text-slate-500')}>
+                  <span className={cn('text-[11px] font-medium leading-none whitespace-nowrap', isDark ? 'text-zinc-400' : 'text-slate-500')}>
                     {formatLastSeenWithSecs(vehicle.lastSeen ?? '')}
                   </span>
                 </div>
@@ -327,12 +308,12 @@ export function VehicleAccordionItem({
                       />
                     </div>
                   ) : (
-                    <div className={cn('font-bold tracking-tight leading-none flex items-center gap-1.5 truncate min-h-[24px]', isCloc ? 'text-[13px]' : 'text-[14px]', clocDark ? 'text-zinc-50' : 'text-slate-900')}>
+                    <div className={cn('font-bold tracking-tight leading-none flex items-center gap-1.5 truncate min-h-[24px]', 'text-[13px]', isDark ? 'text-zinc-50' : 'text-slate-900')}>
                       <span className="truncate">{aliasValue}</span>
                       {isExpanded && (
                         <button
                           onClick={(e) => { e.stopPropagation(); setIsEditingAlias(true); }}
-                          className={cn('transition-colors p-1 rounded shrink-0', clocDark ? 'text-zinc-500 hover:text-blue-400 hover:bg-zinc-600' : 'text-slate-400 hover:text-brand hover:bg-slate-50')}
+                          className={cn('transition-colors p-1 rounded shrink-0', isDark ? 'text-zinc-500 hover:text-blue-400 hover:bg-zinc-600' : 'text-slate-400 hover:text-brand hover:bg-slate-50')}
                           title="Editar alias"
                         >
                           <Pencil className="w-3.5 h-3.5" />
@@ -342,7 +323,7 @@ export function VehicleAccordionItem({
                   )}
                   {/* operator — Línea 2: placa sin guiones + velocidad */}
                   <div className="flex items-center justify-between mt-0.5 min-h-[14px] gap-2">
-                    <span className={cn('text-[11px] font-medium leading-none shrink-0', clocDark ? 'text-zinc-400' : 'text-slate-500')}>
+                    <span className={cn('text-[11px] font-medium leading-none shrink-0', isDark ? 'text-zinc-400' : 'text-slate-500')}>
                       {vehicle.plate.replace(/-/g, '')}
                     </span>
                     {!isExpanded && (
@@ -358,13 +339,8 @@ export function VehicleAccordionItem({
 
           {/* Botones derecha: chevron + acción */}
           <div className="flex items-center gap-1 shrink-0">
-            <div className={cn(
-              'flex items-center justify-center transition-all duration-200',
-              isCloc
-                ? cn('w-6 h-6 rounded text-neutral-400', isExpanded && 'rotate-180')
-                : cn('w-7 h-7 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50', isExpanded && 'rotate-180')
-            )}>
-              <ChevronDown className={cn(isCloc ? 'w-3.5 h-3.5' : 'w-4 h-4')} />
+            <div className={cn('flex items-center justify-center transition-all duration-200 w-6 h-6 rounded text-neutral-400', isExpanded && 'rotate-180')}>
+              <ChevronDown className="w-3.5 h-3.5" />
             </div>
             {vehicle.gpsDevices?.[0] ? (
               <div className="relative">
@@ -372,11 +348,10 @@ export function VehicleAccordionItem({
                   ref={esadMenuRef}
                   onClick={(e) => { e.stopPropagation(); setShowEsadMenu(!showEsadMenu); }}
                   className={cn(
-                    'flex items-center justify-center rounded transition-colors',
-                    isCloc ? 'w-6 h-6' : 'w-7 h-7 rounded-lg border',
+                    'flex items-center justify-center rounded transition-colors w-6 h-6',
                     showEsadMenu
-                      ? (isCloc ? 'text-brand bg-brand/5' : 'border-brand/30 bg-brand/5 text-brand')
-                      : (isCloc ? (clocDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-600' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100') : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')
+                      ? 'text-brand bg-brand/5'
+                      : (isDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-600' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100')
                   )}
                 >
                   <MoreVertical className="w-3.5 h-3.5" />
@@ -391,12 +366,11 @@ export function VehicleAccordionItem({
                       gpsDevice={vehicle.gpsDevices![0]}
                       onShowToast={onShowToast}
                       userRole={userRole}
-                      profile={profile}
-                      onFlyTo={onFlyTo}
+                      onFlyTo={() => onFlyTo(vehicle.position as [number, number])}
                       onTrips={() => setShowTripsModal(true)}
                       onParqueo={() => setShowParqueoModal(true)}
                       onCommand={() => setShowCommandModal(true)}
-                      onTogglePin={onTogglePin}
+                      onTogglePin={onTogglePin ? () => onTogglePin(vehicle.id) : undefined}
                       isPinned={isPinned}
                     />
                   )}
@@ -408,11 +382,10 @@ export function VehicleAccordionItem({
                   ref={shareButtonRef}
                   onClick={(e) => { e.stopPropagation(); setShowSharePopover(!showSharePopover); }}
                   className={cn(
-                    'flex items-center justify-center rounded transition-colors',
-                    isCloc ? 'w-6 h-6' : 'w-7 h-7 rounded-lg border',
+                    'flex items-center justify-center rounded transition-colors w-6 h-6',
                     showSharePopover
-                      ? (isCloc ? 'text-brand bg-brand/5' : 'border-brand/30 bg-brand/5 text-brand')
-                      : (isCloc ? (clocDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-600' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100') : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')
+                      ? 'text-brand bg-brand/5'
+                      : (isDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-600' : 'text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100')
                   )}
                 >
                   <MoreVertical className="w-3.5 h-3.5" />
@@ -440,16 +413,13 @@ export function VehicleAccordionItem({
               <div className={cn(
                 'flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold shrink-0',
                 vehicle.status === 'active'
-                  ? (clocDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
-                  : (clocDark ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-600')
+                  ? (isDark ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-50 text-emerald-600')
+                  : (isDark ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-600')
               )}>
                 <div className={cn('w-1.5 h-1.5 rounded-full', vehicle.status === 'active' ? 'bg-emerald-500' : 'bg-red-500')} />
-                {profile === 'c-go'
-                  ? vehicle.status === 'active' ? 'Ignition ON' : 'Ignition OFF'
-                  : vehicle.status === 'active' ? 'Encendido'   : 'Apagado'
-                }
+                {vehicle.status === 'active' ? 'Encendido' : 'Apagado'}
               </div>
-              <span className={cn('text-[11px] font-medium whitespace-nowrap', clocDark ? 'text-zinc-400' : 'text-slate-500')}>
+              <span className={cn('text-[11px] font-medium whitespace-nowrap', isDark ? 'text-zinc-400' : 'text-slate-500')}>
                 {userRole === 'admin'
                   ? formatLastSeenWithSecs(vehicle.lastSeen)
                   : formatLastSeen(vehicle.lastSeen)
@@ -480,17 +450,17 @@ export function VehicleAccordionItem({
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        onFlyTo();
-                        if (isCloc && document.getElementById('map-vehicle-card')) {
+                        onFlyTo(vehicle.position as [number, number]);
+                        if (document.getElementById('map-vehicle-card')) {
                           window.dispatchEvent(new CustomEvent('vehicleSelected', { detail: { id: vehicle.id, source: 'marker' } }));
                         }
                       }}
-                      className={cn('text-[11.5px] font-semibold leading-tight text-left transition-colors', clocDark ? 'text-zinc-100 hover:text-blue-400' : 'text-slate-800 hover:text-brand')}
+                      className={cn('text-[11.5px] font-semibold leading-tight text-left transition-colors', isDark ? 'text-zinc-100 hover:text-blue-400' : 'text-slate-800 hover:text-brand')}
                     >{vehicle.address}</button>
                     <div className="relative">
                       <button
                         onClick={(e) => { e.stopPropagation(); copyText(`https://www.google.com/maps?q=${vehicle.coords}`, 'card-coords'); }}
-                        className={cn('group flex items-center gap-1 text-left text-[10.5px] font-medium tracking-wide transition-colors', clocDark ? 'text-zinc-500 hover:text-blue-400' : 'text-slate-400 hover:text-brand')}
+                        className={cn('group flex items-center gap-1 text-left text-[10.5px] font-medium tracking-wide transition-colors', isDark ? 'text-zinc-500 hover:text-blue-400' : 'text-slate-400 hover:text-brand')}
                       >
                         {vehicle.coords}
                         <Copy className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
@@ -503,8 +473,8 @@ export function VehicleAccordionItem({
                 </div>
               </div>
 
-              {/* ZONA 2.5 — TELEMETRÍA — en c-loc solo client (no operator) */}
-              {(userRole !== 'operator' || profile !== 'c-loc') && <div className="flex items-center pb-3">
+              {/* ZONA 2.5 — TELEMETRÍA — solo client (no operator) */}
+              {userRole !== 'operator' && <div className="flex items-center pb-3">
                 {(userRole === 'admin'
                   ? [
                       { icon: Gauge,   value: vehicle.speed,                  label: 'Velocidad', isAlarm: false, colorClass: null as string | null },
@@ -540,7 +510,7 @@ export function VehicleAccordionItem({
                         <stat.icon className={cn('w-3.5 h-3.5 opacity-80 group-hover:opacity-100 transition-opacity', stat.colorClass ?? brandCls)} strokeWidth={1.75} />
                       )}
                       <span className={cn('text-[11px] font-semibold tabular-nums',
-                        stat.isAlarm && Number(stat.value) > 0 ? 'text-orange-500' : stat.colorClass ?? (clocDark ? 'text-zinc-200' : 'text-slate-700')
+                        stat.isAlarm && Number(stat.value) > 0 ? 'text-orange-500' : stat.colorClass ?? (isDark ? 'text-zinc-200' : 'text-slate-700')
                       )}>
                         {stat.isAlarm ? (Number(stat.value) === 0 ? 'Sin eventos' : `${stat.value} eventos`) : stat.value}
                       </span>
@@ -555,24 +525,24 @@ export function VehicleAccordionItem({
 
               {/* GPS button */}
               {showGpsButton && (
-                <div className={cn('relative w-full pt-3 pb-[2px]', clocDark ? 'border-t border-zinc-700' : 'border-t border-slate-100')}>
+                <div className={cn('relative w-full pt-3 pb-[2px]', isDark ? 'border-t border-zinc-700' : 'border-t border-slate-100')}>
                   <button
                     ref={gpsButtonRef}
                     onClick={(e) => { e.stopPropagation(); setShowGpsPopover(!showGpsPopover); }}
                     className={cn(
                       'flex items-center justify-between w-full px-3 py-2 border rounded-lg transition-colors group',
                       showGpsPopover
-                        ? (clocDark ? 'bg-blue-400/10 border-blue-400/40' : 'bg-brand/5 border-brand/30')
-                        : (clocDark ? 'bg-zinc-900/60 border-zinc-700 hover:border-blue-400/40 hover:bg-blue-400/10' : 'bg-slate-50 border-slate-200 hover:border-brand/30 hover:bg-brand/5')
+                        ? (isDark ? 'bg-blue-400/10 border-blue-400/40' : 'bg-brand/5 border-brand/30')
+                        : (isDark ? 'bg-zinc-900/60 border-zinc-700 hover:border-blue-400/40 hover:bg-blue-400/10' : 'bg-slate-50 border-slate-200 hover:border-brand/30 hover:bg-brand/5')
                     )}
                   >
-                    <div className={cn('flex items-center gap-1.5 transition-colors', clocDark ? 'text-zinc-200 group-hover:text-blue-400' : 'text-slate-700 group-hover:text-brand')}>
+                    <div className={cn('flex items-center gap-1.5 transition-colors', isDark ? 'text-zinc-200 group-hover:text-blue-400' : 'text-slate-700 group-hover:text-brand')}>
                       <LocateFixed className={cn('w-3.5 h-3.5', brandCls)} />
                       <span className="text-[11px] font-semibold">
                         Ver {visibleGpsCount === 1 ? '1 dispositivo' : `${visibleGpsCount} dispositivos`} GPS
                       </span>
                     </div>
-                    <div className={cn('flex items-center transition-colors', clocDark ? 'text-zinc-400 group-hover:text-blue-400' : 'text-slate-500 group-hover:text-brand')}>
+                    <div className={cn('flex items-center transition-colors', isDark ? 'text-zinc-400 group-hover:text-blue-400' : 'text-slate-500 group-hover:text-brand')}>
                       {showGpsPopover ? <X className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     </div>
                   </button>
@@ -583,7 +553,6 @@ export function VehicleAccordionItem({
                         triggerRef={gpsButtonRef}
                         onClose={() => setShowGpsPopover(false)}
                         userRole={userRole}
-                        profile={profile}
                         onShowToast={onShowToast}
                       />
                     )}
@@ -592,50 +561,50 @@ export function VehicleAccordionItem({
               )}
 
               {/* ZONA 3 — ACCIONES (oculta para esad — sus acciones están en el menú ⋮) */}
-              {userRole !== 'esad' && <div className={cn('flex items-center justify-around pt-2 pb-1', clocDark ? 'border-t border-zinc-700' : 'border-t border-slate-100')}>
+              {userRole !== 'esad' && <div className={cn('flex items-center justify-around pt-2 pb-1', isDark ? 'border-t border-zinc-700' : 'border-t border-slate-100')}>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onFlyTo();
-                    if (isCloc) window.dispatchEvent(new CustomEvent('vehicleSelected', { detail: { id: vehicle.id, source: 'marker' } }));
+                    onFlyTo(vehicle.position as [number, number]);
+                    window.dispatchEvent(new CustomEvent('vehicleSelected', { detail: { id: vehicle.id, source: 'marker' } }));
                   }}
-                  className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors group', clocDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}
+                  className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors group', isDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}
                 >
                   <MapPin className="w-4 h-4" strokeWidth={1.75} />
                   <span className="text-[10px] font-semibold">Ubicación</span>
                 </button>
                 <button
                   onClick={(e) => e.stopPropagation()}
-                  className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', clocDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}
+                  className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}
                 >
                   <Route className="w-4 h-4" strokeWidth={1.75} />
                   <span className="text-[10px] font-semibold">Viajes</span>
                 </button>
                 {/* Posición 3 */}
                 {userRole === 'operator' ? (
-                  <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', clocDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}>
+                  <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}>
                     <FileText className="w-4 h-4" strokeWidth={1.75} />
                     <span className="text-[10px] font-semibold">Detalle</span>
                   </button>
                 ) : (
-                  <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', clocDark ? 'text-zinc-400 hover:text-red-400 hover:bg-red-900/20' : 'text-slate-500 hover:text-red-500 hover:bg-red-50')}>
+                  <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? 'text-zinc-400 hover:text-red-400 hover:bg-red-900/20' : 'text-slate-500 hover:text-red-500 hover:bg-red-50')}>
                     <Lock className="w-4 h-4" strokeWidth={1.75} />
                     <span className="text-[10px] font-semibold">Parqueo</span>
                   </button>
                 )}
                 {/* Posición 4 */}
                 {userRole === 'operator' ? (
-                  <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', clocDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}>
+                  <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}>
                     <Navigation className="w-4 h-4" strokeWidth={1.75} />
                     <span className="text-[10px] font-semibold">Conducción</span>
                   </button>
                 ) : userRole === 'client' ? (
-                  <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', clocDark ? 'text-zinc-400 hover:text-red-400 hover:bg-red-900/20' : 'text-slate-500 hover:text-red-500 hover:bg-red-50')}>
+                  <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? 'text-zinc-400 hover:text-red-400 hover:bg-red-900/20' : 'text-slate-500 hover:text-red-500 hover:bg-red-50')}>
                     <Power className="w-4 h-4" strokeWidth={1.75} />
                     <span className="text-[10px] font-semibold">Bloquear</span>
                   </button>
                 ) : (
-                  <button onClick={(e) => { e.stopPropagation(); setShowCommandModal(true); }} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', clocDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}>
+                  <button onClick={(e) => { e.stopPropagation(); setShowCommandModal(true); }} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}>
                     <Zap className="w-4 h-4" strokeWidth={1.75} />
                     <span className="text-[10px] font-semibold">Comando</span>
                   </button>

@@ -3,20 +3,15 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Activity, Car, Clock, Star, CreditCard } from 'lucide-react';
 import { FLEET_DATA } from './shared/lib/data';
-import { HeaderCGo } from './c-go/components/Header';
-import { Sidebar } from './c-go/components/Sidebar';
 import { SidebarCLoc } from './c-loc/components/Sidebar';
 import { FleetMap } from './shared/components/FleetMap';
-import { FloatingStats } from './shared/components/FloatingStats';
-import { StatCard } from './shared/components/fleet/StatCard';
 import { FloatingMonitor } from './shared/components/FloatingMonitor';
 import { CaminosModule } from './shared/components/CaminosModule';
-import { CardPreviewModule } from './shared/components/CardPreviewModule';
 import { PeajesPanel } from './shared/components/PeajesPanel';
 import { VehicleTabBar } from './shared/components/VehicleTabBar';
 import { VehicleCaptureView, VehicleTripView } from './shared/components/vehicle-detail';
+import { StatCard } from './shared/components/fleet/StatCard';
 import type { Vehicle } from './shared/lib/data';
-import type { AppProfile } from './shared/components/ui/UserMenu';
 import type { UserRole } from './shared/lib/utils';
 import { cn } from './shared/lib/utils';
 import { VehicleProvider } from './shared/lib/VehicleContext';
@@ -26,7 +21,6 @@ const CURRENT_USER = { name: 'Daniel Salas', initials: 'DS' };
 
 export default function App() {
   const [activeView, setActiveView] = useState('explore');
-  const [profile, setProfile] = useState<AppProfile>('c-go');
   const [userRole, setUserRole] = useState<UserRole>('esad');
   const [showMonitor, setShowMonitor] = useState(false);
   const [isDark, setIsDark] = useState(false);
@@ -123,7 +117,6 @@ export default function App() {
     }
   }, [showMetricsTooltip]);
   useEffect(() => {
-    if (profile !== 'c-loc') return;
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey) {
         if (e.key === 'b' || e.key === 'B') {
@@ -142,16 +135,15 @@ export default function App() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [profile]);
+  }, []);
 
   const handleMonitorSide = useCallback((s: 'left' | 'right', w: number) => {
     setMonitorSide(s);
     setMonitorW(w);
   }, []);
 
-  if (profile === 'c-loc') {
-    return (
-      <ThemeContext.Provider value={{ isDark }}>
+  return (
+    <ThemeContext.Provider value={{ isDark }}>
       <VehicleProvider>
         <div className={cn('flex w-full h-screen overflow-hidden font-sans', isDark ? 'bg-zinc-950' : 'bg-neutral-50')}>
           <SidebarCLoc
@@ -193,12 +185,11 @@ export default function App() {
                 <>
                   {activeView === 'explore' && (
                     <div className="relative w-full h-full">
-                      <FleetMap monitorSide={monitorSide} monitorW={monitorW} profile={profile} />
+                      <FleetMap monitorSide={monitorSide} monitorW={monitorW} />
                       <FloatingMonitor
                         isOpen={showMonitor}
                         onToggle={() => setShowMonitor(v => !v)}
                         onClose={() => setShowMonitor(false)}
-                        profile={profile}
                         userRole={userRole}
                         isDark={isDark}
                         onSideChange={handleMonitorSide}
@@ -285,7 +276,6 @@ export default function App() {
                     </div>
                   )}
                   {activeView === 'caminos' && <CaminosModule />}
-                  {activeView === 'card-preview' && <CardPreviewModule />}
                 </>
               )}
             </main>
@@ -322,27 +312,6 @@ export default function App() {
           </div>
         </div>
       </VehicleProvider>
-      </ThemeContext.Provider>
-    );
-  }
-
-  return (
-    <VehicleProvider>
-      <div className="flex flex-col w-full h-screen bg-[#F5F5F7] overflow-hidden font-sans">
-        <HeaderCGo onProfileChange={setProfile} userRole={userRole} onRoleChange={setUserRole} />
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar activeView={activeView} onViewChange={setActiveView} />
-          <main className="flex-1 relative w-full min-w-0 overflow-hidden">
-            {activeView === 'explore' && (
-              <>
-                <FleetMap />
-                <FloatingStats profile={profile} userRole={userRole} />
-              </>
-            )}
-            {activeView === 'caminos' && <CaminosModule />}
-          </main>
-        </div>
-      </div>
-    </VehicleProvider>
+    </ThemeContext.Provider>
   );
 }
