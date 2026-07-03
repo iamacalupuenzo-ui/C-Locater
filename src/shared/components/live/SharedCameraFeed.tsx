@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, WifiOff } from 'lucide-react';
-import { CHANNEL_PREFIX } from '../../lib/cameraShare';
+import Peer from 'peerjs';
 
 type FeedStatus = 'waiting' | 'active' | 'disconnected';
+
+export const PEER_PREFIX = 'clocater-cam-';
 
 interface SharedCameraFeedProps {
   roomId: string;
@@ -10,47 +12,46 @@ interface SharedCameraFeedProps {
 }
 
 export function SharedCameraFeed({ roomId, className = '' }: SharedCameraFeedProps) {
-  const canvasRef  = useRef<HTMLCanvasElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const peerRef  = useRef<Peer | null>(null);
   const [status, setStatus] = useState<FeedStatus>('waiting');
-  const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   useEffect(() => {
-    const channel = new BroadcastChannel(`${CHANNEL_PREFIX}${roomId}`);
+    const peerId = `${PEER_PREFIX}${roomId}`;
+    const peer   = new Peer(peerId);
+    peerRef.current = peer;
 
-    const resetTimeout = () => {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => setStatus('disconnected'), 4000);
-    };
+    peer.on('call', (call) => {
+      call.answer();
+      call.on('stream', (remoteStream) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = remoteStream;
+          videoRef.current.play().catch(() => {});
+        }
+        setStatus('active');
+      });
+      call.on('close', () => setStatus('disconnected'));
+      call.on('error', () => setStatus('disconnected'));
+    });
 
-    channel.onmessage = (e) => {
-      const { type, bitmap } = e.data as { type: string; bitmap: ImageBitmap };
-      if (type !== 'frame' || !bitmap) return;
+    peer.on('error', (err) => {
+      // unavailable-id = otra instancia ya registró este peer, la ignoro
+      if ((err as any).type !== 'unavailable-id') setStatus('disconnected');
+    });
 
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      canvas.width  = bitmap.width;
-      canvas.height = bitmap.height;
-      ctx.drawImage(bitmap, 0, 0);
-      bitmap.close();
-
-      if (status !== 'active') setStatus('active');
-      resetTimeout();
-    };
-
-    return () => {
-      clearTimeout(timeoutRef.current);
-      channel.close();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { peer.destroy(); };
   }, [roomId]);
 
   return (
     <div className={`relative ${className}`}>
-      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted
+        className="absolute inset-0 w-full h-full object-cover"
+        style={{ display: status === 'active' ? 'block' : 'none' }}
+      />
 
       {status === 'waiting' && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-900">
