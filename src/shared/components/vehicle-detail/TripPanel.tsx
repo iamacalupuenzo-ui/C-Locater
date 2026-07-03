@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   MapPin, Flag, Clock, Route, Calendar, LocateFixed,
-  ChevronDown, ChevronRight, Navigation, Power, AlertTriangle,
+  ChevronDown, ChevronRight, Navigation, Power, AlertTriangle, X,
   Bike, Car, Truck, Bus, Settings2,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
@@ -28,7 +28,7 @@ export interface TripEventGroup {
 
 // ─── Mock trip data ────────────────────────────────────────────────────────
 
-const ADDRESSES = [
+export const ADDRESSES = [
   'Av. Universitaria 3206, San Miguel',
   'Panamericana Norte Km 15, Puente Piedra',
   'Av. Javier Prado Este 4600, Surco',
@@ -44,7 +44,7 @@ const ADDRESSES = [
 ];
 
 // Coordenadas reales Lima, Perú — orden paralelo a ADDRESSES
-const ADDRESS_COORDS: [number, number][] = [
+export const ADDRESS_COORDS: [number, number][] = [
   [-12.0762, -77.0849], // Av. Universitaria 3206, San Miguel
   [-11.8665, -77.0752], // Panamericana Norte Km 15, Puente Piedra
   [-12.1054, -76.9812], // Av. Javier Prado Este 4600, Surco
@@ -115,11 +115,27 @@ const TRK221_TRIP0_REMAINING: [number, number][] = [
 // Viaje 4 (en curso — hoy 22/05/2026): Callao → Lima Centro vía Av. Colonial
 // Ruta este-oeste que atraviesa Callao, Cercado, Breña hasta Lima Centro
 const TRK221_TRIP4_TRAVELED: [number, number][] = [
-  [-12.0498, -77.1082],  // Inicio — Av. Colonial / Av. Argentina, Callao
+  [-12.0498, -77.1082],
+  [-12.0499, -77.1060],
+  [-12.0500, -77.1038],
+  [-12.0501, -77.1015],
+  [-12.0501, -77.0993],
   [-12.0501, -77.0970],
+  [-12.0501, -77.0945],
+  [-12.0501, -77.0920],
+  [-12.0500, -77.0895],
+  [-12.0500, -77.0870],
   [-12.0500, -77.0855],
+  [-12.0500, -77.0830],
+  [-12.0499, -77.0805],
+  [-12.0499, -77.0780],
+  [-12.0499, -77.0755],
   [-12.0499, -77.0740],
-  [-12.0497, -77.0625],  // Posición actual — Av. Colonial / Av. Brasil, Breña
+  [-12.0498, -77.0715],
+  [-12.0498, -77.0690],
+  [-12.0497, -77.0665],
+  [-12.0497, -77.0640],
+  [-12.0497, -77.0625],
 ];
 const TRK221_TRIP4_REMAINING: [number, number][] = [
   [-12.0497, -77.0625],
@@ -191,18 +207,34 @@ const TRK221_TRIP2_ROUTE: [number, number][] = [
 ];
 
 // Viaje 3 (completado): Jr. de la Unión, Lima Centro → Av. La Marina 2000, San Miguel
-// Atraviesa Breña y Pueblo Libre hacia el oeste
+// Atraviesa Breña y Pueblo Libre hacia el oeste, 21 puntos
 const TRK221_TRIP3_ROUTE: [number, number][] = [
   [-12.0468, -77.0283],
+  [-12.0468, -77.0300],
+  [-12.0470, -77.0315],
   [-12.0475, -77.0330],
+  [-12.0478, -77.0350],
+  [-12.0480, -77.0365],
   [-12.0482, -77.0378],
+  [-12.0485, -77.0395],
+  [-12.0487, -77.0410],
   [-12.0490, -77.0428],
+  [-12.0495, -77.0450],
+  [-12.0498, -77.0465],
   [-12.0500, -77.0480],
+  [-12.0505, -77.0505],
+  [-12.0510, -77.0520],
   [-12.0515, -77.0540],
+  [-12.0525, -77.0570],
+  [-12.0530, -77.0585],
   [-12.0535, -77.0600],
+  [-12.0545, -77.0620],
   [-12.0558, -77.0650],
+  [-12.0570, -77.0670],
   [-12.0582, -77.0695],
+  [-12.0595, -77.0710],
   [-12.0612, -77.0730],
+  [-12.0630, -77.0750],
   [-12.0642, -77.0760],
   [-12.0668, -77.0778],
   [-12.0691, -77.0793],
@@ -334,6 +366,72 @@ const TRK221_EVENTS: Record<number, TripEventGroup[]> = {
   ],
 };
 
+// Viaje 5 (completado): Av. Benavides, Miraflores → Av. Arequipa, San Isidro (21 puntos)
+const TRK221_TRIP5_ROUTE: [number, number][] = [
+  [-12.1317, -77.0055],
+  [-12.1310, -77.0045],
+  [-12.1300, -77.0035],
+  [-12.1290, -77.0020],
+  [-12.1278, -77.0005],
+  [-12.1265, -76.9985],
+  [-12.1250, -76.9965],
+  [-12.1235, -76.9955],
+  [-12.1218, -76.9950],
+  [-12.1195, -76.9945],
+  [-12.1170, -76.9945],
+  [-12.1145, -76.9950],
+  [-12.1120, -76.9960],
+  [-12.1095, -76.9975],
+  [-12.1075, -76.9990],
+  [-12.1055, -77.0005],
+  [-12.1035, -77.0030],
+  [-12.1018, -77.0060],
+  [-12.1005, -77.0100],
+  [-12.0995, -77.0150],
+  [-12.0985, -77.0200],
+  [-12.0978, -77.0250],
+  [-12.0974, -77.0359],
+];
+
+// Viaje 6 (completado): Av. Túpac Amaru, Comas → Av. Colonial, Cercado (20 puntos)
+const TRK221_TRIP6_ROUTE: [number, number][] = [
+  ...TRK221_TRIP0_TRAVELED,
+  ...TRK221_TRIP0_REMAINING,
+];
+
+// Viaje 7 (completado): Av. Próceres de la Independencia, SJL → Av. Universitaria, San Miguel (23 puntos)
+const TRK221_TRIP7_ROUTE: [number, number][] = [
+  [-11.9810, -77.0076],
+  [-11.9860, -77.0110],
+  [-11.9915, -77.0145],
+  [-11.9970, -77.0180],
+  [-12.0025, -77.0215],
+  [-12.0080, -77.0250],
+  [-12.0135, -77.0285],
+  [-12.0190, -77.0320],
+  [-12.0245, -77.0355],
+  [-12.0300, -77.0390],
+  [-12.0355, -77.0425],
+  [-12.0410, -77.0460],
+  [-12.0465, -77.0495],
+  [-12.0520, -77.0530],
+  [-12.0545, -77.0555],
+  [-12.0580, -77.0590],
+  [-12.0620, -77.0630],
+  [-12.0660, -77.0670],
+  [-12.0695, -77.0710],
+  [-12.0725, -77.0750],
+  [-12.0745, -77.0795],
+  [-12.0755, -77.0825],
+  [-12.0762, -77.0849],
+];
+
+// Viaje 8 (completado): Panamericana Norte, Puente Piedra → Javier Prado, Surco (misma ruta viaje 2)
+const TRK221_TRIP8_ROUTE = TRK221_TRIP2_ROUTE;
+
+// Viaje 9 (completado): Jr. de la Unión, Centro → Av. La Marina, San Miguel (misma ruta viaje 3)
+const TRK221_TRIP9_ROUTE = TRK221_TRIP3_ROUTE;
+
 // Mapa tripIndex → datos de ruta (origin/destination/coords anulan los generados por seed)
 const TRK221_ROUTES: Record<number, {
   routeCoords?: [number, number][];
@@ -370,6 +468,11 @@ const TRK221_ROUTES: Record<number, {
     originCoords: [-12.0498, -77.1082],
     destCoords:   [-12.0453, -77.0268],
   },
+  5: { routeCoords: TRK221_TRIP5_ROUTE },
+  6: { routeCoords: TRK221_TRIP6_ROUTE },
+  7: { routeCoords: TRK221_TRIP7_ROUTE },
+  8: { routeCoords: TRK221_TRIP8_ROUTE },
+  9: { routeCoords: TRK221_TRIP9_ROUTE },
 };
 
 export function generateTrips(vehicle: Vehicle): Trip[] {
@@ -455,6 +558,7 @@ export function TripPanel({ vehicle, isDark = false, onTripSelect }: TripPanelPr
   const [filterOpen, setFilterOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
+  const [activeEventTripId, setActiveEventTripId] = useState<string | null>(null);
   const [showScrollHint, setShowScrollHint] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -466,7 +570,21 @@ export function TripPanel({ vehicle, isDark = false, onTripSelect }: TripPanelPr
 
   useEffect(() => { setTimeout(checkScroll, 80); }, [filterMode, selectedDate, checkScroll]);
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setActiveEventTripId(detail?.tripId ?? null);
+    };
+    window.addEventListener('tripEventsSelected', handler);
+    return () => window.removeEventListener('tripEventsSelected', handler);
+  }, []);
+
   function handleOpenEvents(tripId: string, groups: TripEventGroup[]) {
+    // Toggle: si ya está abierto, cerrar
+    if (activeEventTripId === tripId) {
+      window.dispatchEvent(new CustomEvent('tripEventsSelected', { detail: null }));
+      return;
+    }
     // Si el viaje no está seleccionado, seleccionarlo para mostrar la ruta primero
     if (selectedTripId !== tripId) {
       setSelectedTripId(tripId);
@@ -538,7 +656,7 @@ export function TripPanel({ vehicle, isDark = false, onTripSelect }: TripPanelPr
   const iconColor   = gpsBadge.ping ? '#10b981' : vStatus.color;
 
   const panel = cn(
-    'rounded-md shadow-sm border flex flex-col overflow-hidden backdrop-blur-2xl',
+    'rounded-md border flex flex-col overflow-hidden',
     isDark ? 'bg-zinc-900/96 border-zinc-800' : 'bg-white/94 border-white/70',
   );
 
@@ -766,29 +884,34 @@ export function TripPanel({ vehicle, isDark = false, onTripSelect }: TripPanelPr
                     </div>
                   </div>
 
-                  {trip.events > 0 && (
-                    trip.eventGroups ? (
-                      <button
-                        onClick={e => { e.stopPropagation(); handleOpenEvents(trip.id, trip.eventGroups!); }}
-                        className={cn(
-                          'flex items-center gap-1 rounded-md px-1.5 py-0.5 transition-colors',
-                          isDark ? 'hover:bg-amber-500/10' : 'hover:bg-amber-50',
-                        )}
-                      >
-                        <AlertTriangle className="w-3 h-3 text-amber-400" strokeWidth={1.75} />
-                        <span className={cn('text-[11px] font-medium', isDark ? 'text-zinc-300' : 'text-slate-600')}>
-                          {trip.events} {trip.events === 1 ? 'evento' : 'eventos'}
-                        </span>
-                        <ChevronRight className="w-3 h-3 text-amber-400" strokeWidth={2.5} />
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-1">
-                        <AlertTriangle className={cn('w-3 h-3', trip.status === 'cancelled' ? 'text-red-400' : 'text-amber-400')} strokeWidth={1.75} />
-                        <span className={cn('text-[11px] font-medium', isDark ? 'text-zinc-300' : 'text-slate-600')}>
+                  {trip.events > 0 && trip.eventGroups && (
+                    <button
+                      onClick={e => { e.stopPropagation(); handleOpenEvents(trip.id, trip.eventGroups); }}
+                      className={cn(
+                        'flex items-center gap-1 px-2 py-1 rounded-md transition-colors group border',
+                        activeEventTripId === trip.id
+                          ? (isDark ? 'bg-blue-400/10 border-blue-400/40' : 'bg-brand/5 border-brand/30')
+                          : (isDark ? 'bg-zinc-900/60 border-zinc-700 hover:border-blue-400/40 hover:bg-blue-400/10' : 'bg-slate-50 border-slate-200 hover:border-brand/30 hover:bg-brand/5'),
+                      )}
+                    >
+                      <div className={cn('flex items-center gap-1 transition-colors', isDark ? 'text-zinc-200 group-hover:text-blue-400' : 'text-slate-700 group-hover:text-brand')}>
+                        <AlertTriangle className="w-3 h-3" strokeWidth={1.75} />
+                        <span className="text-[11px] font-semibold">
                           {trip.events} {trip.events === 1 ? 'evento' : 'eventos'}
                         </span>
                       </div>
-                    )
+                      <div className={cn('flex items-center transition-colors', isDark ? 'text-zinc-400 group-hover:text-blue-400' : 'text-slate-500 group-hover:text-brand')}>
+                        {activeEventTripId === trip.id ? <X className="w-3 h-3" strokeWidth={2} /> : <ChevronRight className="w-3 h-3" strokeWidth={2.5} />}
+                      </div>
+                    </button>
+                  )}
+                  {trip.events > 0 && !trip.eventGroups && (
+                    <div className="flex items-center gap-1">
+                      <AlertTriangle className={cn('w-3 h-3', trip.status === 'cancelled' ? 'text-red-400' : 'text-amber-400')} strokeWidth={1.75} />
+                      <span className={cn('text-[11px] font-medium', isDark ? 'text-zinc-300' : 'text-slate-600')}>
+                        {trip.events} {trip.events === 1 ? 'evento' : 'eventos'}
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>

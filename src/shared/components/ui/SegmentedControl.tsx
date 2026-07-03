@@ -35,7 +35,7 @@ const sizeStyles: Record<SegmentedSize, { container: string; button: string; ico
 const variantConfig: Record<SegmentedVariant, { track: string; active: string; inactive: string }> = {
   default: {
     track: 'bg-gray-100 rounded-lg',
-    active: 'bg-white text-gray-900 shadow-sm',
+    active: 'bg-white text-gray-900',
     inactive: 'text-gray-500 hover:text-gray-700',
   },
   dark: {

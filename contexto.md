@@ -1,7 +1,11 @@
 # Contexto del Proyecto CLocater
 
 > Documentación técnica completa para análisis y modificación del proyecto
-> Actualizado: 2026-06-16 (Sesión 26 — **Eliminación completa de la plataforma C-Go**. Se borró `src/c-go/` y toda la lógica condicional `profile === 'c-go'` / `isCloc` / `AppProfile` en componentes shared: `VehicleAccordionItem`, `GpsBadgeTooltip`, `GpsPopover`, `GpsActionMenu`, `FleetMap`, `UserMenu`. El proyecto queda con una sola plataforma: **C-Loc**. Detalle completo en la sección 22. Cualquier mención a "C-Go", `profile` o `AppProfile` en secciones anteriores de este documento es **histórica** — se conserva como referencia de diseño pasado, pero ya no existe en el código)
+> Actualizado: 2026-07-03 (Sesión 30b — **LiveVehicleList**: nueva vista conectada al ítem "En vivo" del sidebar. Grid de tarjetas mostrando solo las unidades con cámara configurada. Preview 16:9 con scan lines, badge "EN VIVO", contador de cámaras, botón hover "Monitorear" y botón "Ver". Al hacer click despacha `monitorVehicle` y abre LiveTrackingView directamente.)
+> Actualizado: 2026-07-03 (Sesión 30 — **Centro de Monitoreo en Vivo y Sistema de Alertas (RF-19 + RF-20)**: LiveTrackingView (mapa + panel multi-cámara 50/50 colapsable, divisor arrastrable, seguimiento en tiempo real), AlertOverlay (popup slide-in, AlertDrawer lateral derecho, audio TTS para alertas críticas, generador mock cada 45s), acción "Monitoreo" en Zona 3 de VehicleAccordionItem (admin/operator) y GpsActionMenu. Nuevos archivos: `alertData.ts`, `cameraData.ts`, `alerts/AlertCard`, `alerts/AlertPopup`, `alerts/AlertDrawer`, `AlertOverlay`, `live/CameraThumb`, `live/CameraPanel`, `LiveTrackingView`. VehicleTabBar extiende label a `'Monitor'`. Sidebar agrega ítem "Alertas" en MANAGEMENT_ITEMS.)
+> Actualizado: 2026-06-19 (Sesión 29 — **Dashboard**: nueva vista con mapa mundial Leaflet (burbujas por país), 5 KPI cards (total, activos, detenidos, sin señal, con alarma) + panel de km totales y distribución por país. Nav item "Dashboard" con LayoutDashboard icon agregado sobre "Explorar" en Sidebar.tsx. Ver §26)
+> Actualizado: 2026-06-19 (Sesión 28 — **VehicleCaptureView rediseño completo**: layout unificado de tres columnas, dock picker del panel Posiciones (izq/der/abajo), colapso de sidebar al abrir captura, restricción de altura, preservación de estado interno de VehicleDetailPanel al cambiar dock. Ver §25)
+> Actualizado: 2026-06-16 (Sesión 27 — **CaminosModule refinements UI**: barra de acciones masivas rediseñada con design system, iconos de orden siempre visibles, columnas reordenadas, fix de checkbox saltando)
 > Actualizado: 2026-06-16 (Sesión 25 — Panel "Eventos del viaje" en VehicleTripView: el grid 2×2 de tags por tipo de evento fue reemplazado por filtros "Todos" / "Filtrar" (dropdown multi-selección checkbox), siguiendo el estándar de filtros Hoy/Todos/Fecha de TripPanel. Estado `activeEventType: TripEventType | null` → `activeEventTypes: Set<TripEventType>` (vacío = sin filtro = todos). Propagado a VehicleTrackingMap (prop `activeEventTypes`, `EventMarkers`). Botón "Filtrar" muestra contador en negrita cuando hay filtros activos, ej. "02 Filtrar")
 
 ---
@@ -1174,5 +1178,189 @@ Decisión del usuario: dejar de mantener dos plataformas (C-Go y C-Loc) y consol
 ### Qué NO cambió
 - Ningún comportamiento, layout ni estilo visible de **C-Loc** fue alterado — todas las ramas condicionales colapsaron a la rama que ya correspondía a C-Loc.
 - `definicion.md` conserva sus secciones históricas sobre diferencias C-Go/C-Loc como registro de decisiones de producto pasadas; no se reescribió porque documenta decisiones ya tomadas, no el código vigente.
+
+---
+
+## 23. CaminosModule — Refinamientos UI (Sesión 27)
+
+### Contexto
+
+En la Sesión 25 se migró `CaminosModule.tsx` a la librería `ui/`. En esta sesión se refinaron visualmente sus elementos para alinearlos completamente al design system, se corrigieron bugs de posicionamiento (checkbox saltando) y se reorganizaron columnas.
+
+### Cambios visuales
+
+- **Barra de acciones masivas**: rediseñada de dark (`bg-gray-900/95 backdrop-blur-xl`) a `bg-slate-50` con `border border-slate-200`, sombra elevada y `<Button variant="ghost" size="sm">` con iconos para cada acción (`PowerOff`, `Copy`, `Send`, `Trash2`)
+- **Iconos de ordenamiento**: ahora siempre visibles (`opacity-40`) en vez de `opacity-0 group-hover:opacity-60`
+- **Columnas reordenadas**: Ruta → Empresa → Grupo (antes Ruta → Grupo → Empresa)
+- **Reducción de textos**: headers, celdas, badges y botones con tamaños consistentes según la librería
+- **Botones de acción**: `size="icon"` para más padding
+- **SegmentedControl**: sombras eliminadas
+
+### Bug fixes
+
+- **Checkbox saltando al seleccionar**: los checkboxes (header y rows) se envolvieron en `<div className="flex items-center justify-center">` dentro de `<th>`/`<td>` para evitar que el navegador calcule distinto el `vertical-align` con el `inline-flex` vacío vs con contenido
+- **Checkbox indeterminate**: estilo corregido
+- **Transition-colors**: eliminado de rows y checkbox para evitar micro-movimientos al seleccionar
+
+---
+
+## 24. VehicleTripView — Dropdown de filtro de eventos estandarizado (Sesión 28)
+
+### Contexto
+
+El dropdown de "Filtrar" en VehicleTripView usaba un checkbox hecho a mano (`<span>` con border/background inline) y estilos no estándar (`rounded-sm`, `shadow-[0_4px_12px_rgba(0,0,0,0.1)]`). Se reemplazó para alinearlo al design system de la librería y al estilo de dropdown de FloatingMonitor.
+
+### Cambios
+
+- **Checkbox**: el `<span>` con estilo manual fue reemplazado por `<Checkbox size="sm">` de `ui/Checkbox`
+- **Panel**: `rounded-md` → `rounded-lg`, `shadow-[0_4px_12px...]` → `shadow-[0_4px_20px_rgba(0,0,0,0.18)]` (mismo shadow que dropdown de FloatingMonitor)
+- **Opciones**: `rounded-sm` → `rounded-md`, `px-2 py-1.5` → `px-3 py-2`, iconos de 12px → 14px
+- **Label "Tipo de evento"**: padding vertical unificado (`py-1` → `py-1.5`)
+- **"Limpiar filtros"**: `rounded-sm` → `rounded-md`, `px-2 py-1.5` → `px-3 py-2`
+- **Ancho fijo** (`style={{ width: 200 }}`) eliminado; reemplazado por `min-w-[200px]` para que crezca si el texto lo requiere
+- **Divider** (`-mx-1`) simplificado a `mx-0` (el padding interno del panel ya da el espacio)
+- Import de `Check` (lucide-react) reemplazado por import de `Checkbox` (`../ui/Checkbox`)
+
+### Verificación
+
+- `npm run build`: build exitoso con solo el warning preexistente de chunk size
+
+---
+
+## 25. VehicleCaptureView — Rediseño completo del módulo de parqueo seguro (Sesión 28)
+
+**Archivo:** `src/shared/components/vehicle-detail/VehicleCaptureView.tsx`
+
+### Contexto
+
+El módulo de "parqueo seguro" (captura) tenía múltiples problemas de layout y comportamiento descubiertos durante la Sesión 28. Se resolvieron en cascada y culminaron en un rediseño estructural del componente.
+
+### Bugs corregidos
+
+#### 1. Panel "Posiciones" aparecía debajo del mapa
+El bloque `<2xl` usaba `flex-col` con el panel de posiciones en un `div` separado con `h-60` al fondo. Se restructuró a tres columnas en fila para ambos breakpoints.
+
+#### 2. Duplicación del contenido al alejar el zoom
+El fix anterior introdujo un `style={{ display: 'flex' }}` que sobreescribía la clase `2xl:hidden` de Tailwind. Ambos bloques (`<2xl` y `2xl+`) renderizaban simultáneamente. Se eliminó el inline style.
+
+#### 3. Menú de navegación no se ocultaba al abrir captura
+El viaje ya despachaba `collapseSidebar`/`restoreSidebar`. Se replicó el mismo patrón para `activeCaptureId` en `App.tsx` con un `prevCaptureRef`.
+
+#### 4. Estado interno de VehicleDetailPanel se reseteaba al cambiar el dock
+El ternario `positionsDock === 'below-sidebar' ? ... : ...` desmontaba y remontaba `VehicleDetailPanel` en ramas distintas del árbol, destruyendo el estado de los acordeones y tabs. Se eliminó el ternario: ahora `VehicleDetailPanel` está siempre en el mismo nodo del árbol y solo su contenedor wrapper cambia de clase CSS según el dock.
+
+### Funcionalidad nueva: Dock picker del panel "Posiciones"
+
+El panel de posiciones puede reubicarse en tres posiciones mediante un popover:
+
+| Posición | ID | Comportamiento del layout |
+|----------|----|--------------------------|
+| Izquierda | `'left'` | Columna 260px entre sidebar y mapa |
+| Derecha | `'right'` | Columna 260px a la derecha del mapa |
+| Abajo | `'below-sidebar'` | Apilado al fondo de la columna sidebar |
+
+**Handle:** ícono `GripVertical` en el header del panel → abre `AnimatePresence` popover con 3 botones, cada uno con un SVG de preview del layout resultante.
+
+**Click-outside:** `useEffect` + `dockPickerRef` cierra el popover al hacer click fuera.
+
+**Restricción de altura:** `ResizeObserver` sobre `layoutRef` mide la altura del contenedor. Si `height < 480px`, la opción "Abajo" se deshabilita (`opacity-35 cursor-not-allowed`) y si el dock activo era `'below-sidebar'` se resetea automáticamente a `'left'`. Tooltip: `'No hay suficiente espacio vertical'`.
+
+### Estructura del layout unificado
+
+Se eliminaron los dos bloques responsivos (`2xl:hidden` / `hidden 2xl:grid`). El layout es ahora uno solo:
+
+```
+flex flex-1 min-h-0 gap-3 p-3
+├── sidebar 322px (flex-col)
+│   ├── VehicleDetailPanel (grow-0 shrink overflow-y-auto cuando dock=below, flex-1 overflow-y-auto en otro caso)
+│   └── positionsPanelCard [solo cuando dock=below-sidebar] (flex-1 min-h-[160px])
+├── positionsPanelCard [solo cuando dock=left] (w-[260px])
+├── mapa (flex-1)
+└── positionsPanelCard [solo cuando dock=right] (w-[260px])
+```
+
+`positionsPanelCard` es una variable JSX definida antes del `return` — reutiliza el mismo markup en los tres slots sin duplicar código.
+
+### Estado del componente
+
+```ts
+// Dock del panel de posiciones
+const [positionsDock, setPositionsDock] = useState<DockPosition>('left');
+const [showDockPicker, setShowDockPicker] = useState(false);
+const dockPickerRef = useRef<HTMLDivElement>(null);
+
+// Restricción de altura
+const layoutRef = useRef<HTMLDivElement>(null);
+const [hasEnoughHeight, setHasEnoughHeight] = useState(true);
+```
+
+### Scroll hint
+
+`posCheckScroll` se dispara en dos `useEffect`:
+1. Cuando cambia `positionHistory` (datos)
+2. Cuando cambia `positionsDock` o `showPositions` (layout) — con 120ms de delay para esperar la transición de Framer Motion
+
+---
+
+## 26. DashboardView — Vista de resumen operativo de la flota (Sesión 29)
+
+**Archivo:** `src/shared/components/DashboardView.tsx`
+
+### Contexto
+
+Nueva vista de alto nivel accesible desde el primer ítem de la barra de navegación. Proporciona un resumen rápido del estado de la flota sin necesidad de entrar al mapa de exploración.
+
+### Layout
+
+```
+┌─ Header (título + badge "En tiempo real") ──────────────────────┐
+│  KPI cards ×5: Total | Activos | Detenidos | Sin señal | Alarma │
+│  ┌── Mapa Leaflet (flex-1) ─────────────────┐ ┌── Panel 220px ─┐│
+│  │  CartoDB world map, zoom=3               │ │  Total km      ││
+│  │  Burbujas con count por país             │ │  Lista países  ││
+│  └──────────────────────────────────────────┘ └────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### KPI cards
+
+5 tarjetas horizontales derivadas de `FLEET_DATA`:
+- **Total unidades**: `FLEET_DATA.length`
+- **Activos**: `status === 'active'` (verde)
+- **Detenidos**: `status === 'stopped'` (ámbar)
+- **Sin señal**: `status === 'offline'` (rojo)
+- **Con alarma**: `alarmCount > 0` (naranja)
+
+### Mapa mundial
+
+- `MapContainer` de react-leaflet con `center={[5, -55]}` `zoom={3}`
+- Tile layer de CartoDB: `light_nolabels` (modo claro) / `dark_nolabels` (modo oscuro), determinado por `isDark`
+- `zoomControl={false}`, `attributionControl={false}`, `scrollWheelZoom={true}`
+- Marcadores de países con `L.divIcon` personalizado: burbuja circular con número centrado, tamaño variable (34/42/52px) según magnitud del count, color COUNTRY_COLORS[i]
+- `Tooltip` de react-leaflet en hover mostrando país + conteo
+
+### Mock country data (COUNTRY_DATA)
+
+```ts
+const COUNTRY_DATA = [
+  { country: 'Perú',      lat: -9.19,  lng: -75.01, count: 12 },
+  { country: 'Chile',     lat: -35.67, lng: -71.54,  count: 4  },
+  { country: 'Colombia',  lat:  4.57,  lng: -74.29,  count: 3  },
+  { country: 'Ecuador',   lat: -1.83,  lng: -78.18,  count: 3  },
+  { country: 'Argentina', lat: -38.42, lng: -63.62,  count: 2  },
+];
+const COUNTRY_COLORS = ['#3B82F6', '#8B5CF6', '#10B981', '#F59E0B', '#EF4444'];
+```
+
+### Panel lateral (220px)
+
+- **Total km**: suma de odómetros de `FLEET_DATA`, formateado como `Xk km`
+- **Lista de países**: nombre + count + barra de progreso relativa al MAX_COUNT
+- Icono `Route` de lucide-react en violeta
+
+### Integración en Sidebar y App
+
+- **Sidebar.tsx**: `LayoutDashboard` importado de lucide-react; `{ id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', shortcut: ['D'] }` como primer elemento de `NAV_ITEMS`; case `'d'/'D'` agregado en el `keydown` handler
+- **App.tsx**: `import { DashboardView }` + `{activeView === 'dashboard' && <DashboardView />}` antes del bloque `explore`
 
 *Fin del documento contexto.md*

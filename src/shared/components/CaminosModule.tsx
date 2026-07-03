@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Download, Plus, MoreHorizontal, ChevronLeft, ChevronRight,
-  Pencil, Trash2, PowerOff, Copy, Send,
+  Pencil, Trash2, Copy, Send, PowerOff,
   ArrowUpDown, ArrowUp, ArrowDown, Search, X, Filter,
+  SlidersHorizontal, GripVertical, RotateCcw,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -10,6 +12,9 @@ import { Button } from './ui/Button';
 import { StatusBadge, TagBadge } from './ui/Badge';
 import { SearchInput } from './ui/SearchInput';
 import { DropdownMenu } from './ui/DropdownMenu';
+import { Checkbox } from './ui/Checkbox';
+import { SegmentedControl } from './ui/SegmentedControl';
+import { IconButton } from './ui/IconButton';
 import { NuevoGrupoModule } from './NuevoGrupoModule';
 
 const RUTAS_DATA = [
@@ -25,20 +30,22 @@ const RUTAS_DATA = [
 
 type Ruta = typeof RUTAS_DATA[0];
 type SortConfig = { key: string; direction: 'asc' | 'desc' | null };
+type ColDef = { key: string; label: string; visible: boolean };
+
+const DEFAULT_COLS: ColDef[] = [
+  { key: 'name',    label: 'Ruta',          visible: true },
+  { key: 'company', label: 'Empresa',        visible: true },
+  { key: 'group',   label: 'Grupo',          visible: true },
+  { key: 'config',  label: 'Configuración',  visible: true },
+  { key: 'status',  label: 'Estado',         visible: true },
+];
 
 // Searchable dropdown reutilizable para filtros
 function FilterSelect({
-  label,
-  value,
-  options,
-  onSelect,
-  allLabel = 'Todos',
+  label, value, options, onSelect, allLabel = 'Todos',
 }: {
-  label: string;
-  value: string;
-  options: string[];
-  onSelect: (v: string) => void;
-  allLabel?: string;
+  label: string; value: string; options: string[];
+  onSelect: (v: string) => void; allLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -52,12 +59,12 @@ function FilterSelect({
         <button
           onClick={() => setOpen(!open)}
           className={cn(
-            'flex items-center justify-between gap-2 px-3 py-2 bg-white border rounded-lg text-sm min-w-[160px] transition-colors',
+            'flex items-center justify-between gap-2 px-3 py-2 bg-white border rounded-lg text-xs min-w-[160px] transition-colors',
             isActive ? 'border-gray-700 text-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-300'
           )}
         >
           <span className="truncate">{value}</span>
-          <Filter className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-gray-700' : 'text-gray-300')} />
+          <Filter className={cn('w-3.5 h-3.5 shrink-0', isActive ? 'text-gray-700' : 'text-gray-400')} />
         </button>
 
         {open && (
@@ -68,9 +75,7 @@ function FilterSelect({
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 rounded-lg">
                   <Search className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                   <input
-                    autoFocus
-                    type="text"
-                    value={query}
+                    autoFocus type="text" value={query}
                     onChange={e => setQuery(e.target.value)}
                     onClick={e => e.stopPropagation()}
                     placeholder="Buscar..."
@@ -81,22 +86,18 @@ function FilterSelect({
               <div className="max-h-48 overflow-y-auto p-1">
                 <button
                   onClick={() => { onSelect(allLabel); setOpen(false); setQuery(''); }}
-                  className={cn('w-full text-left px-3 py-2 rounded-lg text-sm transition-colors', value === allLabel ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50')}
+                  className={cn('w-full text-left px-3 py-2 rounded-lg text-xs transition-colors', value === allLabel ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50')}
                 >
                   {allLabel}
                 </button>
                 {filtered.map(o => (
-                  <button
-                    key={o}
-                    onClick={() => { onSelect(o); setOpen(false); setQuery(''); }}
-                    className={cn('w-full text-left px-3 py-2 rounded-lg text-sm transition-colors', value === o ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50')}
+                  <button key={o} onClick={() => { onSelect(o); setOpen(false); setQuery(''); }}
+                    className={cn('w-full text-left px-3 py-2 rounded-lg text-xs transition-colors', value === o ? 'bg-gray-100 text-gray-900 font-medium' : 'text-gray-600 hover:bg-gray-50')}
                   >
                     {o}
                   </button>
                 ))}
-                {filtered.length === 0 && (
-                  <p className="px-3 py-3 text-center text-xs text-gray-400">Sin resultados</p>
-                )}
+                {filtered.length === 0 && <p className="px-3 py-3 text-center text-xs text-gray-400">Sin resultados</p>}
               </div>
             </div>
           </>
@@ -106,22 +107,19 @@ function FilterSelect({
   );
 }
 
-// Ícono de ordenamiento reutilizable
 function SortIcon({ colKey, config }: { colKey: string; config: SortConfig }) {
-  if (config.key !== colKey || !config.direction)
-    return <ArrowUpDown className="w-3 h-3 opacity-0 group-hover:opacity-60 transition-opacity" />;
+  if (config.key !== colKey || !config.direction) return <ArrowUpDown className="w-3 h-3 opacity-40" />;
   if (config.direction === 'asc') return <ArrowUp className="w-3 h-3" />;
   return <ArrowDown className="w-3 h-3" />;
 }
 
-// Cabecera de columna ordenable
 function SortableTh({ colKey, label, sortConfig, onSort, className }: {
   colKey: string; label: string; sortConfig: SortConfig;
-  onSort: (k: string) => void; className?: string;
+  onSort: (k: string) => void; className?: string; key?: React.Key;
 }) {
   return (
     <th
-      className={cn('py-3 px-4 text-sm font-medium text-gray-400 cursor-pointer hover:text-gray-600 group transition-colors select-none', className)}
+      className={cn('py-3 px-4 text-xs font-medium text-gray-400 cursor-pointer hover:text-gray-600 transition-colors select-none', className)}
       onClick={() => onSort(colKey)}
     >
       <div className="flex items-center gap-1.5">
@@ -129,6 +127,128 @@ function SortableTh({ colKey, label, sortConfig, onSort, className }: {
         <SortIcon colKey={colKey} config={sortConfig} />
       </div>
     </th>
+  );
+}
+
+// Panel de configuración de columnas
+function ColumnConfigurator({
+  columns, onToggle, onMove, onReset, anchorRef, onClose,
+}: {
+  columns: ColDef[];
+  onToggle: (key: string) => void;
+  onMove: (key: string, dir: -1 | 1) => void;
+  onReset: () => void;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (!anchorRef.current) return;
+    const rect = anchorRef.current.getBoundingClientRect();
+    const panelW = 248;
+    const left = Math.min(rect.left, window.innerWidth - panelW - 8);
+    setPos({ top: rect.bottom + 6, left });
+  }, [anchorRef]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (panelRef.current?.contains(e.target as Node)) return;
+      if (anchorRef.current?.contains(e.target as Node)) return;
+      onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose, anchorRef]);
+
+  if (!pos) return null;
+
+  const visibleCount = columns.filter(c => c.visible).length;
+
+  return createPortal(
+    <motion.div
+      ref={panelRef}
+      initial={{ opacity: 0, y: -6, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -6, scale: 0.97 }}
+      transition={{ duration: 0.14, ease: 'easeOut' }}
+      style={{ top: pos.top, left: pos.left, width: 248 }}
+      className="fixed z-[9999] bg-white border border-gray-100 rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden"
+    >
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+        <div>
+          <p className="text-[13px] font-semibold text-gray-900">Columnas</p>
+          <p className="text-[11px] text-gray-400 mt-0.5">
+            {visibleCount} de {columns.length} visibles
+          </p>
+        </div>
+        <button
+          onClick={onReset}
+          className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-700 transition-colors py-1 px-1.5 rounded-md hover:bg-gray-50"
+          title="Restaurar orden y visibilidad por defecto"
+        >
+          <RotateCcw className="w-3 h-3" />
+          Restaurar
+        </button>
+      </div>
+
+      {/* Lista de columnas */}
+      <div className="p-2">
+        {columns.map((col, i) => (
+          <div
+            key={col.key}
+            className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-gray-50 group transition-colors"
+          >
+            <GripVertical className="w-3.5 h-3.5 text-gray-300 shrink-0 cursor-grab" />
+
+            <Checkbox
+              size="sm"
+              checked={col.visible}
+              onChange={() => {
+                if (!col.visible || visibleCount > 1) onToggle(col.key);
+              }}
+            />
+
+            <span className={cn(
+              'flex-1 text-[13px] select-none',
+              col.visible ? 'text-gray-700' : 'text-gray-400 line-through'
+            )}>
+              {col.label}
+            </span>
+
+            {/* Controles de reorden */}
+            <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <button
+                disabled={i === 0}
+                onClick={() => onMove(col.key, -1)}
+                className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                title="Subir"
+              >
+                <ArrowUp className="w-3 h-3" />
+              </button>
+              <button
+                disabled={i === columns.length - 1}
+                onClick={() => onMove(col.key, 1)}
+                className="p-1 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+                title="Bajar"
+              >
+                <ArrowDown className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 py-2.5 border-t border-gray-50">
+        <p className="text-[10px] text-gray-400 leading-tight">
+          Las columnas fijas (Acciones) no son configurables.
+        </p>
+      </div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -142,10 +262,14 @@ export function CaminosModule() {
   const [sortConfig,      setSortConfig]      = useState<SortConfig>({ key: '', direction: null });
   const [selectedIds,     setSelectedIds]     = useState<Set<string>>(new Set());
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [columns,         setColumns]         = useState<ColDef[]>(DEFAULT_COLS.map(c => ({ ...c })));
+  const [colPanelOpen,    setColPanelOpen]    = useState(false);
+  const colBtnRef = useRef<HTMLButtonElement>(null);
 
   const companies = Array.from(new Set(RUTAS_DATA.map(r => r.company)));
   const groups    = Array.from(new Set(RUTAS_DATA.map(r => r.group)));
   const hasFilters = selectedCompany !== 'Todas' || selectedGroup !== 'Todos' || selectedStatus !== 'Todos' || searchQuery !== '';
+  const visibleCols = columns.filter(c => c.visible);
 
   const clearFilters = () => {
     setSearchQuery(''); setSelectedCompany('Todas');
@@ -160,6 +284,23 @@ export function CaminosModule() {
         : 'asc',
     }));
   };
+
+  const toggleCol = (key: string) => {
+    setColumns(prev => prev.map(c => c.key === key ? { ...c, visible: !c.visible } : c));
+  };
+
+  const moveCol = (key: string, dir: -1 | 1) => {
+    setColumns(prev => {
+      const idx = prev.findIndex(c => c.key === key);
+      const next = [...prev];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return prev;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return next;
+    });
+  };
+
+  const resetCols = () => setColumns(DEFAULT_COLS.map(c => ({ ...c })));
 
   const filteredData = RUTAS_DATA
     .filter(r => {
@@ -179,21 +320,20 @@ export function CaminosModule() {
       return sortConfig.direction === 'asc' ? av < bv ? -1 : 1 : av > bv ? -1 : 1;
     });
 
-  const totalPages   = Math.ceil(filteredData.length / itemsPerPage) || 1;
+  const totalPages    = Math.ceil(filteredData.length / itemsPerPage) || 1;
   const paginatedData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const isAllSelected  = paginatedData.length > 0 && paginatedData.every(r => selectedIds.has(r.id));
   const isSomeSelected = paginatedData.some(r => selectedIds.has(r.id));
 
-  const toggleAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const toggleAll = (checked: boolean) => {
     const next = new Set(selectedIds);
-    if (e.target.checked) paginatedData.forEach(r => next.add(r.id));
+    if (checked) paginatedData.forEach(r => next.add(r.id));
     else paginatedData.forEach(r => next.delete(r.id));
     setSelectedIds(next);
   };
 
-  const toggleOne = (id: string, e: React.MouseEvent | React.ChangeEvent) => {
-    e.stopPropagation();
+  const toggleOne = (id: string) => {
     const next = new Set(selectedIds);
     next.has(id) ? next.delete(id) : next.add(id);
     setSelectedIds(next);
@@ -201,9 +341,82 @@ export function CaminosModule() {
 
   useEffect(() => { setCurrentPage(1); }, [searchQuery, selectedCompany, selectedGroup, selectedStatus]);
 
+  // Render de celdas por columna
+  const renderHeaderCell = (col: ColDef) => {
+    const sortableCols = ['name', 'company', 'group'];
+    if (sortableCols.includes(col.key)) {
+      return (
+        <SortableTh
+          key={col.key}
+          colKey={col.key}
+          label={col.label}
+          sortConfig={sortConfig}
+          onSort={handleSort}
+        />
+      );
+    }
+    return (
+      <th key={col.key} className="py-3 px-4 text-xs font-medium text-gray-400">
+        {col.label}
+      </th>
+    );
+  };
+
+  const renderBodyCell = (col: ColDef, ruta: Ruta) => {
+    switch (col.key) {
+      case 'name':
+        return (
+          <td key="name" className="py-4 px-4">
+            <p className="text-xs font-medium text-gray-900">{ruta.name}</p>
+            <p className="text-xs text-gray-400 mt-0.5 font-mono">{ruta.id}</p>
+          </td>
+        );
+      case 'company':
+        return (
+          <td key="company" className="py-4 px-4">
+            <span className="text-xs text-gray-600">{ruta.company}</span>
+          </td>
+        );
+      case 'group':
+        return (
+          <td key="group" className="py-4 px-4">
+            <TagBadge className="text-[11px]">{ruta.group}</TagBadge>
+          </td>
+        );
+      case 'config':
+        return (
+          <td key="config" className="py-4 px-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-xs text-gray-500">
+                Radio: <span className="font-medium text-gray-700">{ruta.config.radio}</span>
+              </span>
+              <span className={cn(
+                'text-xs font-medium flex items-center gap-1',
+                ruta.config.alertas === 'Activo' ? 'text-emerald-600' : 'text-gray-400'
+              )}>
+                <span className={cn(
+                  'w-1.5 h-1.5 rounded-full shrink-0',
+                  ruta.config.alertas === 'Activo' ? 'bg-emerald-400' : 'bg-gray-300'
+                )} />
+                Alertas {ruta.config.alertas === 'Activo' ? 'activas' : 'inactivas'}
+              </span>
+            </div>
+          </td>
+        );
+      case 'status':
+        return (
+          <td key="status" className="py-4 px-4">
+            <StatusBadge status={ruta.status} />
+          </td>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="w-full h-full bg-[#FAFAF8] overflow-y-auto">
-      <div className="max-w-screen-xl mx-auto px-8 py-8 flex flex-col gap-6">
+      <div className="px-8 pt-6 pb-8 flex flex-col gap-6">
 
         {/* Cabecera de página */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
@@ -213,18 +426,18 @@ export function CaminosModule() {
             <p className="text-sm text-gray-500 mt-0.5">Trayectorias y configuración de zonas logísticas.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <Button variant="secondary" size="md">
-              <Download className="w-4 h-4" />
+            <Button variant="secondary" size="sm" className="py-2">
+              <Download className="w-3.5 h-3.5" />
               Exportar
             </Button>
-            <Button variant="primary" size="md" onClick={() => setIsCreatingGroup(true)}>
-              <Plus className="w-4 h-4" />
+            <Button variant="primary" size="sm" className="py-2" onClick={() => setIsCreatingGroup(true)}>
+              <Plus className="w-3.5 h-3.5" />
               Nuevo grupo
             </Button>
           </div>
         </div>
 
-        {/* Barra de filtros */}
+        {/* Barra de filtros + control de columnas */}
         <div className="flex flex-wrap items-end gap-3">
           <SearchInput
             placeholder="Buscar por nombre, empresa o ID..."
@@ -249,28 +462,48 @@ export function CaminosModule() {
             allLabel="Todos"
           />
 
-          {/* Estado — segmented control */}
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-medium text-gray-400">Estado</label>
-            <div className="flex items-center bg-gray-100 rounded-lg p-[3px] gap-[2px]">
-              {['Todos', 'Activo', 'Inactivo'].map(s => (
-                <button
-                  key={s}
-                  onClick={() => setSelectedStatus(s)}
-                  className={cn(
-                    'px-3 py-1.5 rounded-md text-xs font-medium transition-all',
-                    selectedStatus === s ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                  )}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              options={[
+                { value: 'Todos',    label: 'Todos'    },
+                { value: 'Activo',   label: 'Activo'   },
+                { value: 'Inactivo', label: 'Inactivo' },
+              ]}
+              value={selectedStatus}
+              onChange={setSelectedStatus}
+              size="sm"
+            />
+          </div>
+
+          {/* Botón configurar columnas — extremo derecho */}
+          <div className="flex flex-col gap-1.5 self-end ml-auto">
+            <button
+              ref={colBtnRef}
+              onClick={() => setColPanelOpen(v => !v)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-2 border rounded-lg text-xs font-medium transition-colors',
+                colPanelOpen
+                  ? 'bg-gray-900 border-gray-900 text-white'
+                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-800'
+              )}
+            >
+              <SlidersHorizontal className="w-3.5 h-3.5" />
+              Columnas
+              {visibleCols.length < columns.length && (
+                <span className={cn(
+                  'text-[10px] font-semibold px-1 rounded',
+                  colPanelOpen ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                )}>
+                  {visibleCols.length}/{columns.length}
+                </span>
+              )}
+            </button>
           </div>
 
           {hasFilters && (
             <div className="self-end">
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
+              <Button variant="ghost" size="sm" onClick={clearFilters} className="text-red-500 hover:text-red-600 hover:bg-red-50">
                 <X className="w-3.5 h-3.5" /> Limpiar
               </Button>
             </div>
@@ -282,21 +515,23 @@ export function CaminosModule() {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-gray-100">
+                {/* Checkbox — fijo */}
                 <th className="py-3 pl-5 pr-3 w-10">
-                  <input
-                    type="checkbox"
-                    checked={isAllSelected}
-                    ref={el => { if (el) el.indeterminate = isSomeSelected && !isAllSelected; }}
-                    onChange={toggleAll}
-                    className="w-4 h-4 rounded border-gray-300 cursor-pointer accent-gray-900"
-                  />
+                  <div className="flex items-center justify-center">
+                    <Checkbox
+                      size="sm"
+                      checked={isAllSelected}
+                      indeterminate={isSomeSelected && !isAllSelected}
+                      onChange={toggleAll}
+                    />
+                  </div>
                 </th>
-                <SortableTh colKey="name"    label="Ruta"          sortConfig={sortConfig} onSort={handleSort} className="w-[30%]" />
-                <SortableTh colKey="group"   label="Grupo"         sortConfig={sortConfig} onSort={handleSort} className="w-[22%]" />
-                <SortableTh colKey="company" label="Empresa"       sortConfig={sortConfig} onSort={handleSort} className="w-[20%]" />
-                <th className="py-3 px-4 text-sm font-medium text-gray-400 w-[16%]">Configuración</th>
-                <th className="py-3 px-4 text-sm font-medium text-gray-400 w-[10%]">Estado</th>
-                <th className="py-3 px-4 w-10" />
+
+                {/* Columnas configurables */}
+                {visibleCols.map(col => renderHeaderCell(col))}
+
+                {/* Acciones — fijo */}
+                <th className="py-3 px-4 text-xs font-medium text-gray-400 w-20">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -310,83 +545,54 @@ export function CaminosModule() {
                       animate={{ opacity: 1 }}
                       transition={{ delay: i * 0.04 }}
                       className={cn(
-                        'border-b border-gray-50 transition-colors group',
+                        'border-b border-gray-50 group',
                         isSelected ? 'bg-gray-50' : 'hover:bg-[#FAFAF8]'
                       )}
                     >
-                      <td className="py-4 pl-5 pr-3 cursor-pointer" onClick={e => toggleOne(ruta.id, e)}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {}}
-                          className="w-4 h-4 rounded border-gray-300 cursor-pointer pointer-events-none accent-gray-900"
-                        />
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <p className="text-sm font-medium text-gray-900">{ruta.name}</p>
-                        <p className="text-xs text-gray-400 mt-0.5 font-mono">{ruta.id}</p>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <TagBadge>{ruta.group}</TagBadge>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <span className="text-sm text-gray-600">{ruta.company}</span>
-                      </td>
-
-                      <td className="py-4 px-4">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs text-gray-500">
-                            Radio: <span className="font-medium text-gray-700">{ruta.config.radio}</span>
-                          </span>
-                          <span className={cn(
-                            'text-xs font-medium flex items-center gap-1',
-                            ruta.config.alertas === 'Activo' ? 'text-emerald-600' : 'text-gray-400'
-                          )}>
-                            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', ruta.config.alertas === 'Activo' ? 'bg-emerald-400' : 'bg-gray-300')} />
-                            Alertas {ruta.config.alertas === 'Activo' ? 'activas' : 'inactivas'}
-                          </span>
+                      <td className="py-4 pl-5 pr-3">
+                        <div className="flex items-center justify-center">
+                          <Checkbox size="sm" checked={isSelected} onChange={() => toggleOne(ruta.id)} />
                         </div>
                       </td>
 
-                      <td className="py-4 px-4">
-                        <StatusBadge status={ruta.status} />
-                      </td>
+                      {visibleCols.map(col => renderBodyCell(col, ruta))}
 
-                      <td className="py-4 px-4 text-center">
-                        <DropdownMenu
-                          items={[
-                            { icon: Pencil,   label: 'Editar'    },
-                            { icon: Copy,     label: 'Copiar'    },
-                            { icon: Download, label: 'Exportar'  },
-                            { icon: Send,     label: 'Enviar'    },
-                            { icon: PowerOff, label: 'Inactivar', dividerBefore: true },
-                            { icon: Trash2,   label: 'Eliminar',  danger: true },
-                          ]}
-                        >
-                          {({ open, ref }) => (
-                            <button
-                              ref={ref}
-                              onClick={e => { e.stopPropagation(); open(); }}
-                              className="p-1.5 rounded-lg text-gray-300 hover:text-gray-700 hover:bg-gray-100 opacity-0 group-hover:opacity-100 transition-all"
-                            >
-                              <MoreHorizontal className="w-4 h-4" />
-                            </button>
-                          )}
-                        </DropdownMenu>
+                      <td className="py-4 px-4">
+                        <div className="flex items-center gap-1">
+                          <IconButton icon={Pencil} aria-label="Editar" variant="ghost" size="sm" className="text-gray-400 hover:text-gray-900" onClick={e => e.stopPropagation()} />
+                          <IconButton icon={Trash2} aria-label="Eliminar" variant="ghost" size="sm" className="text-gray-400 hover:text-red-500" onClick={e => e.stopPropagation()} />
+                          <DropdownMenu
+                            items={[
+                              { icon: Copy,     label: 'Copiar'    },
+                              { icon: Download, label: 'Exportar'  },
+                              { icon: Send,     label: 'Enviar'    },
+                              { icon: PowerOff, label: 'Inactivar', dividerBefore: true },
+                            ]}
+                          >
+                            {({ open, ref }) => (
+                              <IconButton
+                                ref={ref}
+                                icon={MoreHorizontal}
+                                aria-label="Más opciones"
+                                variant="ghost"
+                                size="sm"
+                                className="text-gray-400"
+                                onClick={e => { e.stopPropagation(); open(); }}
+                              />
+                            )}
+                          </DropdownMenu>
+                        </div>
                       </td>
                     </motion.tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-16 text-center">
+                  <td colSpan={2 + visibleCols.length} className="py-16 text-center">
                     <p className="text-sm text-gray-400">Sin resultados para los filtros aplicados.</p>
-                    <button onClick={clearFilters} className="mt-2 text-xs text-gray-500 underline underline-offset-2 hover:text-gray-700 transition-colors">
+                    <Button variant="link" size="sm" onClick={clearFilters} className="mt-2 mx-auto">
                       Limpiar filtros
-                    </button>
+                    </Button>
                   </td>
                 </tr>
               )}
@@ -412,14 +618,11 @@ export function CaminosModule() {
             </div>
 
             <div className="flex items-center gap-1">
-              <button
+              <IconButton
+                icon={ChevronLeft} aria-label="Página anterior" variant="outline" size="sm"
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
+              />
               {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                 <button
                   key={p}
@@ -432,14 +635,11 @@ export function CaminosModule() {
                   {p}
                 </button>
               ))}
-
-              <button
+              <IconButton
+                icon={ChevronRight} aria-label="Página siguiente" variant="outline" size="sm"
                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                 disabled={currentPage === totalPages}
-                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              />
             </div>
           </div>
         </div>
@@ -452,30 +652,38 @@ export function CaminosModule() {
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-gray-900/95 backdrop-blur-xl border border-white/10 text-white rounded-[2rem] p-2 flex items-center gap-2 shadow-[0_16px_48px_rgba(0,0,0,0.22)] z-50 w-max"
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-50 rounded-xl shadow-[0_12px_44px_rgba(0,0,0,0.13)] border border-slate-200 flex items-center gap-1 z-50 w-max"
           >
-            <div className="flex items-center gap-3 pl-3">
-              <span className="text-sm font-semibold text-gray-200">
-                <span className="text-white font-bold">{selectedIds.size}</span> seleccionadas
+            <div className="flex items-center gap-2 pl-4 pr-2.5 py-2">
+              <span className="text-[13px] font-semibold text-slate-600">
+                <span className="text-slate-900">{selectedIds.size}</span> seleccionadas
               </span>
-              <div className="w-px h-5 bg-gray-700" />
+              <div className="w-px h-5 bg-slate-200" />
               <div className="flex items-center gap-0.5">
-                {['Alternar estado', 'Duplicar', 'Mover grupo'].map(label => (
-                  <button key={label} className="px-3 py-1.5 text-xs font-semibold text-gray-300 hover:text-white hover:bg-white/10 rounded-xl transition-all">
-                    {label}
-                  </button>
-                ))}
+                <Button variant="ghost" size="sm"><PowerOff className="w-3.5 h-3.5" />Alternar estado</Button>
+                <Button variant="ghost" size="sm"><Copy className="w-3.5 h-3.5" />Duplicar</Button>
+                <Button variant="ghost" size="sm"><Send className="w-3.5 h-3.5" />Mover grupo</Button>
               </div>
             </div>
-            <div className="flex items-center gap-1 pr-1 ml-2">
-              <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-white hover:bg-white/5 rounded-xl transition-all">
-                Cancelar
-              </button>
-              <button className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-2xl text-xs font-bold transition-all">
-                Eliminar
-              </button>
+            <div className="flex items-center gap-1 pr-3 py-2">
+              <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Cancelar</Button>
+              <Button variant="danger" size="sm"><Trash2 className="w-3.5 h-3.5" />Eliminar</Button>
             </div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Panel de configuración de columnas */}
+      <AnimatePresence>
+        {colPanelOpen && (
+          <ColumnConfigurator
+            columns={columns}
+            onToggle={toggleCol}
+            onMove={moveCol}
+            onReset={resetCols}
+            anchorRef={colBtnRef}
+            onClose={() => setColPanelOpen(false)}
+          />
         )}
       </AnimatePresence>
 

@@ -15,9 +15,7 @@ export type ChatMessage =
   | { role: 'tool'; content: string; tool_call_id: string };
 
 const GROQ_URL  = 'https://api.groq.com/openai/v1/chat/completions';
-// const MODEL = 'llama-3.3-70b-versatile';                    // 12K TPM
-// const MODEL = 'llama-3.1-8b-instant';                       //  6K TPM
-const MODEL     = 'meta-llama/llama-4-scout-17b-16e-instruct'; // 30K TPM ← mejor opción
+const MODEL     = 'meta-llama/llama-4-scout-17b-16e-instruct';
 
 // ─── Tool definitions ───────────────────────────────────────────────────────
 
@@ -231,8 +229,6 @@ ${vehicleIndex}`;
 
   if (!res2.ok) {
     if (res2.status === 429) {
-      // El tool ya se ejecutó (mapa navegó, datos disponibles).
-      // Usar el resultado del tool directamente como respuesta — sin otra llamada al LLM.
       const fallback = toolResults.map(r => r.content).join(' ');
       updatedHistory.push({ role: 'assistant', content: fallback });
       return { response: fallback, updatedHistory };

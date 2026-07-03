@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Map, Truck, Activity, FileText, Settings, Route, Hexagon, Users, ChevronRight, ClipboardList, ChevronLeft, History, FlaskConical, Sun, Moon, HelpCircle, MessageSquare, LogOut, Check } from 'lucide-react';
+import { Map, LayoutDashboard, Truck, Activity, FileText, Settings, Route, Hexagon, Users, ChevronRight, ClipboardList, ChevronLeft, History, FlaskConical, Sun, Moon, HelpCircle, MessageSquare, LogOut, Check, Bell } from 'lucide-react';
 import { cn } from '../../shared/lib/utils';
 import type { UserRole } from '../../shared/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -38,6 +38,7 @@ function ShortcutBadge({ keys, isDark }: { keys: string[]; isDark?: boolean }) {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard', shortcut: ['D'] },
   { id: 'explore', icon: Map, label: 'Explorar', shortcut: ['1'] },
   {
     id: 'fleet', icon: Truck, label: 'Flota', shortcut: ['2'],
@@ -66,8 +67,9 @@ const ROLE_LABELS: Record<UserRole, string> = {
 };
 
 const MANAGEMENT_ITEMS: NavItem[] = [
-  { id: 'caminos', icon: Route, label: 'Caminos', shortcut: ['C'] },
+  { id: 'caminos',   icon: Route,   label: 'Caminos',   shortcut: ['C'] },
   { id: 'geocercas', icon: Hexagon, label: 'Geocercas', shortcut: ['G'] },
+  { id: 'alertas',   icon: Bell,    label: 'Alertas' },
 ];
 
 interface ThemeTokens {
@@ -302,6 +304,7 @@ export function SidebarCLoc({ activeView, onViewChange, userRole, isDark = false
       if (e.key === '\\' || e.key === '|') { e.preventDefault(); setCollapsed(v => !v); return; }
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       switch (e.key) {
+        case 'd': case 'D': onViewChange('dashboard'); break;
         case '1': onViewChange('explore'); break;
         case '2': onViewChange('fleet'); break;
         case '3': onViewChange('live'); break;

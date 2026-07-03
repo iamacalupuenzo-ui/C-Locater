@@ -603,6 +603,7 @@ function AIAssistantOrb({ isOpen, isAttentive, voiceState = 'idle', audioLevel =
 
 // ─── Launcher (orbe + input Google-style) ──────────────────────────────────
 
+const GEMINI_API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY as string | undefined;
 const GROQ_API_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY as string | undefined;
 
 export function AIAssistantLauncher() {
@@ -754,7 +755,6 @@ export function AIAssistantLauncher() {
   const transcribeRef = useRef<(blob: Blob, mime: string) => Promise<void>>();
   transcribeRef.current = async (blob: Blob, mime: string) => {
     if (!GROQ_API_KEY) {
-      // Fallback sin API key
       const text = buildVoiceResp('resumen');
       handleQuery(text);
       return;
@@ -767,7 +767,6 @@ export function AIAssistantLauncher() {
       form.append('model', 'whisper-large-v3-turbo');
       form.append('language', 'es');
       form.append('response_format', 'json');
-      // Prompt guía para reducir alucinaciones en entornos ruidosos
       form.append('prompt', 'Sistema de monitoreo de flota vehicular. El usuario pregunta sobre vehículos, ubicaciones, estado de unidades o conductores.');
 
       const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {

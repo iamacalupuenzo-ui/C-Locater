@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'motion/react';
-import { Map, X } from 'lucide-react';
+import { Map, X, ShieldAlert, Route, MonitorCheck } from 'lucide-react';
 import { cn } from '../lib/utils';
 import type { Vehicle } from '../lib/data';
 
@@ -11,21 +11,15 @@ interface VehicleTabBarProps {
   onSelect: (id: string | null) => void;
   onClose: (id: string) => void;
   isDark?: boolean;
-  label?: 'Captura' | 'Viajes';
-}
-
-function StatusDot({ status }: { status: Vehicle['status'] }) {
-  const color =
-    status === 'active'  ? 'bg-emerald-500' :
-    status === 'stopped' ? 'bg-amber-400'   :
-                           'bg-slate-400';
-  return <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', color)} />;
+  label?: 'Captura' | 'Viajes' | 'Monitor';
+  hideMapTab?: boolean;
+  mapActive?: boolean;
 }
 
 function Tab({
-  isActive, isDark, onClick, children,
+  isActive, isDark, activeColor, onClick, children,
 }: {
-  isActive: boolean; isDark: boolean; onClick: () => void; children: React.ReactNode;
+  isActive: boolean; isDark: boolean; activeColor: string; onClick: () => void; children: React.ReactNode;
 }) {
   return (
     <button
@@ -41,16 +35,16 @@ function Tab({
             : 'bg-neutral-100 border-neutral-200 text-slate-500 hover:bg-neutral-50 hover:text-slate-700',
       )}
     >
-      {isActive && <span className="absolute top-0 left-0 right-0 h-[2px] bg-blue-500" />}
+      {isActive && <span className={cn('absolute top-0 left-0 right-0 h-[2px]', activeColor)} />}
       {children}
     </button>
   );
 }
 
-export function VehicleTabBar({ tabs, activeId, onSelect, onClose, isDark = false, label }: VehicleTabBarProps) {
-  if (tabs.length === 0) return null;
+export function VehicleTabBar({ tabs, activeId, onSelect, onClose, isDark = false, label, hideMapTab = false, mapActive: overrideMapActive }: VehicleTabBarProps) {
+  if (tabs.length === 0 && hideMapTab) return null;
 
-  const mapActive = activeId === null;
+  const mapActive = overrideMapActive ?? activeId === null;
 
   return (
     <div
@@ -60,11 +54,22 @@ export function VehicleTabBar({ tabs, activeId, onSelect, onClose, isDark = fals
       )}
       style={{ scrollbarWidth: 'none' }}
     >
-      {/* Tab fijo: Mapa */}
-      <Tab isActive={mapActive} isDark={isDark} onClick={() => onSelect(null)}>
-        <Map className="w-3 h-3 shrink-0" strokeWidth={1.75} />
-        <span className="text-[11px] font-medium whitespace-nowrap leading-none">Mapa</span>
-      </Tab>
+      {!hideMapTab && (
+        <Tab
+          isActive={mapActive}
+          isDark={isDark}
+          activeColor={label === 'Monitor' ? 'bg-violet-500' : 'bg-blue-500'}
+          onClick={() => onSelect(null)}
+        >
+          {label === 'Monitor'
+            ? <MonitorCheck className="w-3 h-3 shrink-0 text-violet-500" strokeWidth={1.75} />
+            : <Map          className="w-3 h-3 shrink-0" strokeWidth={1.75} />
+          }
+          <span className="text-[11px] font-medium whitespace-nowrap leading-none">
+            {label === 'Monitor' ? 'En vivo' : 'Mapa'}
+          </span>
+        </Tab>
+      )}
 
       {/* Tabs de vehículos capturados */}
       <AnimatePresence initial={false}>
@@ -79,8 +84,19 @@ export function VehicleTabBar({ tabs, activeId, onSelect, onClose, isDark = fals
               transition={{ duration: 0.15, ease: 'easeInOut' }}
               className="overflow-hidden shrink-0"
             >
-              <Tab isActive={isActive} isDark={isDark} onClick={() => onSelect(vehicle.id)}>
-                <StatusDot status={vehicle.status} />
+              <Tab
+                isActive={isActive}
+                isDark={isDark}
+                activeColor={label === 'Captura' ? 'bg-red-500' : label === 'Monitor' ? 'bg-violet-500' : 'bg-blue-500'}
+                onClick={() => onSelect(vehicle.id)}
+              >
+                {label === 'Captura' ? (
+                  <ShieldAlert className="w-3 h-3 shrink-0 text-red-500" strokeWidth={2} />
+                ) : label === 'Monitor' ? (
+                  <MonitorCheck className="w-3 h-3 shrink-0 text-violet-500" strokeWidth={2} />
+                ) : (
+                  <Route className="w-3 h-3 shrink-0 text-blue-500" strokeWidth={2} />
+                )}
                 <span className="text-[11px] font-medium whitespace-nowrap leading-none">
                   {vehicle.plate}
                 </span>

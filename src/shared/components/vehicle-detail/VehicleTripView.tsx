@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo, type ElementType } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Gauge, ChevronsDown, Zap, Navigation2, Clock, MapPin, X, Share2, Download, Check, ChevronDown, Filter } from 'lucide-react';
+import { Gauge, ChevronsDown, Zap, Navigation2, Clock, MapPin, X, Share2, Download, ChevronDown, Filter } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Vehicle } from '../../lib/data';
 import { VehicleTrackingMap } from './VehicleTrackingMap';
 import { TripPanel, generateTrips } from './TripPanel';
 import type { TripEventType, TripEventGroup } from './TripPanel';
 import { TripDownloadModal } from './TripDownloadModal';
+import { Checkbox } from '../ui/Checkbox';
 
 // ─── Config visual de tipos de evento ─────────────────────────────────────
 const EVENT_CONFIG: Record<TripEventType, {
@@ -36,6 +37,7 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
   const [showScrollHint, setShowScrollHint] = useState(false);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const filterBtnRef = useRef<HTMLDivElement>(null);
 
   // Todas las rutas del vehículo para mostrar como fantasmas en el mapa
   const allVehicleTrips = useMemo(() => generateTrips(vehicle), [vehicle]);
@@ -93,6 +95,18 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
     return () => { clearTimeout(t); el.removeEventListener('scroll', checkScroll); };
   }, [checkScroll, activeEventTypes, tripEvents]);
 
+  // Cerrar dropdown de filtro al hacer clic fuera
+  useEffect(() => {
+    if (!eventFilterOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (filterBtnRef.current && !filterBtnRef.current.contains(e.target as Node)) {
+        setEventFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [eventFilterOpen]);
+
   const filteredInstances = useMemo(() => {
     if (!tripEvents) return [];
     const groups = activeEventTypes.size === 0
@@ -149,7 +163,6 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
         <TripPanel vehicle={vehicle} isDark={isDark} />
       </div>
 
-      {/* ── Panel de eventos (entre trip panel y mapa) ── */}
       <AnimatePresence>
         {tripEvents && (
           <motion.div
@@ -157,15 +170,15 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -12, opacity: 0 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="w-[290px] flex-none flex flex-col overflow-hidden p-3 pl-3 pr-0"
+            className="w-[290px] flex-none flex flex-col h-full p-3 pl-3 pr-0"
           >
             <div className={cn(
-              'flex-1 rounded-md border overflow-hidden flex flex-col',
-              isDark ? 'bg-zinc-900/96 border-zinc-800' : 'bg-white/96 border-neutral-200 shadow-sm',
+              'flex-1 rounded-md border flex flex-col min-h-0',
+              isDark ? 'bg-zinc-900/96 border-zinc-800' : 'bg-white/94 border-white/70',
             )}>
               {/* Header */}
               <div className="flex items-center justify-between px-4 py-2.5 shrink-0">
-                <span className={cn('text-[13px] font-bold', isDark ? 'text-zinc-100' : 'text-neutral-800')}>
+                <span className={cn('text-[9.5px] font-semibold uppercase tracking-wider', isDark ? 'text-zinc-500' : 'text-slate-400')}>
                   Eventos del viaje
                 </span>
                 <button
@@ -195,7 +208,7 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
                 </button>
 
                 {/* Filtrar — dropdown multi-selección */}
-                <div className="relative">
+                <div className="relative" ref={filterBtnRef}>
                   <button
                     onClick={() => setEventFilterOpen(p => !p)}
                     className={cn(
@@ -217,13 +230,12 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -4, scale: 0.97 }}
                         transition={{ duration: 0.12 }}
-                        style={{ width: 200 }}
                         className={cn(
-                          'absolute top-full left-0 mt-1.5 z-20 rounded-md border shadow-[0_4px_12px_rgba(0,0,0,0.1)] p-1',
+                          'absolute top-full left-0 mt-1 z-20 rounded-lg border shadow-[0_4px_20px_rgba(0,0,0,0.18)] p-1.5 min-w-[240px]',
                           isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-slate-200',
                         )}
                       >
-                        <div className={cn('px-2 py-1 text-[11px] font-medium', isDark ? 'text-zinc-500' : 'text-slate-400')}>
+                        <div className={cn('px-2 py-1.5 text-[11px] font-medium', isDark ? 'text-zinc-500' : 'text-slate-400')}>
                           Tipo de evento
                         </div>
 
@@ -231,39 +243,31 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
                           const cfg      = EVENT_CONFIG[group.type];
                           const isChecked = activeEventTypes.has(group.type);
                           return (
-                            <button
+                            <div
                               key={group.type}
                               onClick={() => toggleEventType(group.type)}
                               className={cn(
-                                'flex items-center gap-2 w-full px-2 py-1.5 rounded-sm text-left transition-colors',
+                                'flex items-center gap-2 w-full px-3 py-2 rounded-md text-left transition-colors cursor-pointer',
                                 isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-slate-700 hover:bg-slate-100',
                               )}
                             >
-                              <span
-                                className={cn(
-                                  'w-3.5 h-3.5 rounded-sm border flex items-center justify-center shrink-0',
-                                  isChecked ? 'border-transparent' : (isDark ? 'border-zinc-600' : 'border-slate-300'),
-                                )}
-                                style={isChecked ? { background: cfg.color } : {}}
-                              >
-                                {isChecked && <Check className="w-2.5 h-2.5 text-white" strokeWidth={3} />}
-                              </span>
-                              <cfg.Icon size={12} strokeWidth={1.75} style={{ color: cfg.color }} className="shrink-0" />
-                              <span className="text-[12px] flex-1 whitespace-nowrap">{cfg.label}</span>
-                              <span className={cn('text-[11px] tabular-nums', isDark ? 'text-zinc-500' : 'text-slate-400')}>
+                              <Checkbox size="sm" checked={isChecked} />
+                              <cfg.Icon size={14} strokeWidth={1.75} style={{ color: cfg.color }} className="shrink-0" />
+                              <span className="text-xs flex-1 whitespace-nowrap">{cfg.label}</span>
+                              <span className={cn('text-[11px] font-medium tabular-nums', isDark ? 'text-zinc-500' : 'text-slate-400')}>
                                 {group.instances.length}
                               </span>
-                            </button>
+                            </div>
                           );
                         })}
 
                         {activeEventTypes.size > 0 && (
                           <>
-                            <div className={cn('h-px my-1 -mx-1', isDark ? 'bg-zinc-700' : 'bg-slate-200')} />
+                            <div className={cn('h-px my-1', isDark ? 'bg-zinc-700' : 'bg-slate-200')} />
                             <button
                               onClick={() => { setActiveEventTypes(new Set()); setSelectedEvent(null); window.dispatchEvent(new CustomEvent('clearEventHighlight')); }}
                               className={cn(
-                                'w-full text-center px-2 py-1.5 rounded-sm text-[12px] font-medium transition-colors',
+                                'w-full text-center px-3 py-2 rounded-md text-xs font-medium transition-colors',
                                 isDark ? 'text-zinc-400 hover:bg-zinc-800' : 'text-slate-500 hover:bg-slate-100',
                               )}
                             >
@@ -312,10 +316,11 @@ export function VehicleTripView({ vehicle, isDark = false }: VehicleTripViewProp
                               }
                             }}
                             className={cn(
-                              'w-full text-left flex flex-col gap-0.5 px-3 py-2 rounded-md transition-colors',
-                              !isSelected && (isDark ? 'bg-zinc-800/60 hover:bg-zinc-800' : 'bg-neutral-50 hover:bg-neutral-100'),
+                              'w-full text-left flex flex-col gap-0.5 px-3 py-2.5 rounded-lg transition-colors border',
+                              isSelected
+                                ? (isDark ? 'bg-blue-900/20 border-blue-500/50' : 'bg-blue-50/70 border-blue-400/80')
+                                : (isDark ? 'bg-zinc-800/60 border-transparent hover:border-zinc-700' : 'bg-white border-transparent hover:border-slate-200'),
                             )}
-                            style={isSelected ? { background: cfg.color + '18' } : {}}
                           >
                             <div className="flex items-center gap-2">
                               <MapPin className="w-2.5 h-2.5 shrink-0 text-blue-500" strokeWidth={2} />

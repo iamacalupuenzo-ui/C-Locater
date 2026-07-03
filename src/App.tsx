@@ -1,21 +1,31 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { Activity, Car, Clock, Star, CreditCard } from 'lucide-react';
+import { Activity, Car, Clock, Star, CreditCard, ShieldAlert } from 'lucide-react';
 import { FLEET_DATA } from './shared/lib/data';
+import { Modal } from './shared/components/ui/Modal';
 import { SidebarCLoc } from './c-loc/components/Sidebar';
 import { FleetMap } from './shared/components/FleetMap';
 import { FloatingMonitor } from './shared/components/FloatingMonitor';
 import { CaminosModule } from './shared/components/CaminosModule';
+import { DashboardView } from './shared/components/DashboardView';
 import { PeajesPanel } from './shared/components/PeajesPanel';
 import { VehicleTabBar } from './shared/components/VehicleTabBar';
 import { VehicleCaptureView, VehicleTripView } from './shared/components/vehicle-detail';
+import { LiveTrackingView } from './shared/components/LiveTrackingView';
+import { LiveVehicleList } from './shared/components/LiveVehicleList';
+import { AlertOverlay } from './shared/components/AlertOverlay';
+import { CameraShareJoin } from './shared/components/live/CameraShareJoin';
+import { getShareParams } from './shared/lib/cameraShare';
+import type { ShareParams } from './shared/lib/cameraShare';
 import { StatCard } from './shared/components/fleet/StatCard';
 import type { Vehicle } from './shared/lib/data';
 import type { UserRole } from './shared/lib/utils';
 import { cn } from './shared/lib/utils';
 import { VehicleProvider } from './shared/lib/VehicleContext';
 import { ThemeContext } from './shared/lib/ThemeContext';
+import { INITIAL_ALERTS, generateRandomAlert } from './shared/lib/alertData';
+import type { Alert, AlertStatus } from './shared/lib/alertData';
 
 const CURRENT_USER = { name: 'Daniel Salas', initials: 'DS' };
 
@@ -32,6 +42,11 @@ export default function App() {
   const [activeCaptureId, setActiveCaptureId] = useState<string | null>(null);
   const [tripVehicles, setTripVehicles] = useState<Vehicle[]>([]);
   const [activeTripId, setActiveTripId] = useState<string | null>(null);
+  const [monitorVehicles, setMonitorVehicles] = useState<Vehicle[]>([]);
+  const [activeMonitorId, setActiveMonitorId] = useState<string | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>(INITIAL_ALERTS);
+  const [shareParams, setShareParams] = useState<ShareParams | null>(() => getShareParams());
+  const [pendingCaptureVehicle, setPendingCaptureVehicle] = useState<Vehicle | null>(null);
   const [mapMoving, setMapMoving] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   useEffect(() => {
@@ -47,10 +62,7 @@ export default function App() {
     const handler = (e: Event) => {
       const vehicle = (e as CustomEvent<Vehicle>).detail;
       if (!vehicle) return;
-      setCapturedVehicles(prev =>
-        prev.find(v => v.id === vehicle.id) ? prev : [...prev, vehicle]
-      );
-      setActiveCaptureId(vehicle.id);
+      setPendingCaptureVehicle(vehicle);
     };
     window.addEventListener('captureVehicle', handler);
     return () => window.removeEventListener('captureVehicle', handler);
@@ -64,9 +76,45 @@ export default function App() {
         prev.find(v => v.id === vehicle.id) ? prev : [...prev, vehicle]
       );
       setActiveTripId(vehicle.id);
+      setActiveCaptureId(null);
+      setActiveView('explore'); // llevar al módulo correcto
     };
     window.addEventListener('tripVehicle', handler);
     return () => window.removeEventListener('tripVehicle', handler);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const vehicle = (e as CustomEvent<Vehicle>).detail;
+      if (!vehicle) return;
+      setMonitorVehicles(prev =>
+        prev.find(v => v.id === vehicle.id) ? prev : [...prev, vehicle]
+      );
+      setActiveMonitorId(vehicle.id);
+      setActiveView('live'); // llevar al módulo correcto
+    };
+    window.addEventListener('monitorVehicle', handler);
+    return () => window.removeEventListener('monitorVehicle', handler);
+  }, []);
+
+  const updateAlertStatus = useCallback((id: string, status: AlertStatus) => {
+    setAlerts(prev => prev.map(a =>
+      a.id !== id ? a : {
+        ...a,
+        status,
+        ...(status === 'attending' ? { attendedAt: new Date() } : {}),
+        ...(status === 'finished'  ? { finishedAt: new Date() } : {}),
+      }
+    ));
+  }, []);
+
+  // Mock alert generator — new alert every 45s
+  useEffect(() => {
+    const mockVehicles = FLEET_DATA.slice(0, 30).map(v => ({ id: v.id, plate: v.plate, name: v.name }));
+    const interval = setInterval(() => {
+      setAlerts(prev => [generateRandomAlert(mockVehicles), ...prev]);
+    }, 45_000);
+    return () => clearInterval(interval);
   }, []);
 
   const prevTripRef = useRef(activeTripId);
@@ -78,6 +126,26 @@ export default function App() {
     }
     prevTripRef.current = activeTripId;
   }, [activeTripId]);
+
+  const prevMonitorRef = useRef(activeMonitorId);
+  useEffect(() => {
+    if (activeMonitorId) {
+      window.dispatchEvent(new CustomEvent('collapseSidebar'));
+    } else if (prevMonitorRef.current) {
+      window.dispatchEvent(new CustomEvent('restoreSidebar'));
+    }
+    prevMonitorRef.current = activeMonitorId;
+  }, [activeMonitorId]);
+
+  const prevCaptureRef = useRef(activeCaptureId);
+  useEffect(() => {
+    if (activeCaptureId) {
+      window.dispatchEvent(new CustomEvent('collapseSidebar'));
+    } else if (prevCaptureRef.current) {
+      window.dispatchEvent(new CustomEvent('restoreSidebar'));
+    }
+    prevCaptureRef.current = activeCaptureId;
+  }, [activeCaptureId]);
 
   useEffect(() => {
     const onStart = () => setMapMoving(true);
@@ -158,33 +226,20 @@ export default function App() {
           />
           <div className="flex flex-col flex-1 overflow-hidden">
             <main className="flex-1 overflow-hidden min-h-0">
-              {/* Vista de viajes — reemplaza todo */}
-              {activeTripId ? (
-                (() => {
-                  const vehicle = tripVehicles.find(v => v.id === activeTripId);
-                  return vehicle ? (
-                    <VehicleTripView
-                      vehicle={vehicle}
-                      onBack={() => setActiveTripId(null)}
-                      isDark={isDark}
-                    />
-                  ) : null;
-                })()
-              ) : activeCaptureId ? (
-                (() => {
-                  const vehicle = capturedVehicles.find(v => v.id === activeCaptureId);
-                  return vehicle ? (
-                    <VehicleCaptureView
-                      vehicle={vehicle}
-                      onBack={() => setActiveCaptureId(null)}
-                      isDark={isDark}
-                    />
-                  ) : null;
-                })()
-              ) : (
-                <>
-                  {activeView === 'explore' && (
-                    <div className="relative w-full h-full">
+              {/* ── Módulo Explorar ── */}
+              {activeView === 'explore' && (
+                activeTripId ? (
+                  (() => {
+                    const vehicle = tripVehicles.find(v => v.id === activeTripId);
+                    return vehicle ? <VehicleTripView vehicle={vehicle} onBack={() => setActiveTripId(null)} isDark={isDark} /> : null;
+                  })()
+                ) : activeCaptureId ? (
+                  (() => {
+                    const vehicle = capturedVehicles.find(v => v.id === activeCaptureId);
+                    return vehicle ? <VehicleCaptureView vehicle={vehicle} onBack={() => setActiveCaptureId(null)} isDark={isDark} /> : null;
+                  })()
+                ) : (
+                  <div className="relative w-full h-full">
                       <FleetMap monitorSide={monitorSide} monitorW={monitorW} />
                       <FloatingMonitor
                         isOpen={showMonitor}
@@ -274,43 +329,153 @@ export default function App() {
                         </>
                       )}
                     </div>
-                  )}
-                  {activeView === 'caminos' && <CaminosModule />}
-                </>
+                )
               )}
+
+              {/* ── Módulo En vivo ── */}
+              {activeView === 'live' && (
+                activeMonitorId ? (
+                  (() => {
+                    const vehicle = monitorVehicles.find(v => v.id === activeMonitorId);
+                    return vehicle ? <LiveTrackingView vehicle={vehicle} onBack={() => setActiveMonitorId(null)} /> : null;
+                  })()
+                ) : (
+                  <LiveVehicleList />
+                )
+              )}
+
+              {/* ── Otros módulos ── */}
+              {activeView === 'dashboard' && <DashboardView />}
+              {activeView === 'caminos'   && <CaminosModule />}
             </main>
-            <VehicleTabBar
-              tabs={tripVehicles}
-              activeId={activeTripId}
-              onSelect={(id) => setActiveTripId(id)}
-              onClose={(id) => {
-                setTripVehicles(prev => {
-                  const next = prev.filter(v => v.id !== id);
-                  if (next.length === 0) setActiveTripId(null);
-                  else if (activeTripId === id) setActiveTripId(next[next.length - 1].id);
-                  return next;
-                });
-              }}
-              isDark={isDark}
-              label="Viajes"
-            />
-            <VehicleTabBar
-              tabs={capturedVehicles}
-              activeId={activeCaptureId}
-              onSelect={(id) => setActiveCaptureId(id)}
-              onClose={(id) => {
-                setCapturedVehicles(prev => {
-                  const next = prev.filter(v => v.id !== id);
-                  if (next.length === 0) setActiveCaptureId(null);
-                  else if (activeCaptureId === id) setActiveCaptureId(next[next.length - 1].id);
-                  return next;
-                });
-              }}
-              isDark={isDark}
-              label="Captura"
-            />
+
+            {/* Tabs del módulo Explorar — solo visibles cuando el usuario está en Explorar */}
+            {activeView === 'explore' && (tripVehicles.length > 0 || capturedVehicles.length > 0) && (
+              <div className="flex shrink-0">
+                <VehicleTabBar
+                  tabs={tripVehicles}
+                  activeId={activeTripId}
+                  mapActive={activeTripId === null && activeCaptureId === null}
+                  onSelect={(id) => {
+                    if (id === null) { setActiveTripId(null); setActiveCaptureId(null); }
+                    else { setActiveTripId(id); setActiveCaptureId(null); }
+                  }}
+                  onClose={(id) => {
+                    setTripVehicles(prev => {
+                      const next = prev.filter(v => v.id !== id);
+                      if (next.length === 0) setActiveTripId(null);
+                      else if (activeTripId === id) setActiveTripId(next[next.length - 1].id);
+                      return next;
+                    });
+                  }}
+                  isDark={isDark}
+                  label="Viajes"
+                />
+                <VehicleTabBar
+                  tabs={capturedVehicles}
+                  activeId={activeCaptureId}
+                  mapActive={activeTripId === null && activeCaptureId === null}
+                  onSelect={(id) => {
+                    if (id === null) { setActiveCaptureId(null); setActiveTripId(null); }
+                    else { setActiveCaptureId(id); setActiveTripId(null); }
+                  }}
+                  onClose={(id) => {
+                    setCapturedVehicles(prev => {
+                      const next = prev.filter(v => v.id !== id);
+                      if (next.length === 0) setActiveCaptureId(null);
+                      else if (activeCaptureId === id) setActiveCaptureId(next[next.length - 1].id);
+                      return next;
+                    });
+                  }}
+                  isDark={isDark}
+                  label="Captura"
+                  hideMapTab
+                />
+              </div>
+            )}
+
+            {/* Tabs del módulo En vivo — solo visibles cuando el usuario está en En vivo */}
+            {activeView === 'live' && monitorVehicles.length > 0 && (
+              <VehicleTabBar
+                tabs={monitorVehicles}
+                activeId={activeMonitorId}
+                mapActive={activeMonitorId === null}
+                onSelect={(id) => {
+                  if (id === null) { setActiveMonitorId(null); }
+                  else { setActiveMonitorId(id); }
+                }}
+                onClose={(id) => {
+                  setMonitorVehicles(prev => {
+                    const next = prev.filter(v => v.id !== id);
+                    if (next.length === 0) setActiveMonitorId(null);
+                    else if (activeMonitorId === id) setActiveMonitorId(next[next.length - 1].id);
+                    return next;
+                  });
+                }}
+                isDark={isDark}
+                label="Monitor"
+              />
+            )}
           </div>
         </div>
+
+        {shareParams && (
+          <CameraShareJoin params={shareParams} onClose={() => setShareParams(null)} />
+        )}
+
+        <AlertOverlay
+          alerts={alerts}
+          onUpdateStatus={updateAlertStatus}
+          isDark={isDark}
+          showBell={
+            activeView === 'explore' &&
+            activeTripId === null &&
+            activeCaptureId === null
+          }
+        />
+
+        <Modal
+          isOpen={pendingCaptureVehicle !== null}
+          onClose={() => setPendingCaptureVehicle(null)}
+          title="Iniciar captura"
+          icon={ShieldAlert}
+          maxWidth="sm"
+          z="1200"
+          footer={
+            <>
+              <button
+                onClick={() => setPendingCaptureVehicle(null)}
+                className={cn('px-4 py-2 rounded-lg text-[12px] font-semibold transition-colors', isDark ? 'text-zinc-300 hover:bg-zinc-800' : 'text-slate-600 hover:bg-slate-100')}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  if (!pendingCaptureVehicle) return;
+                  setCapturedVehicles(prev =>
+                    prev.find(v => v.id === pendingCaptureVehicle.id) ? prev : [...prev, pendingCaptureVehicle]
+                  );
+                  setActiveCaptureId(pendingCaptureVehicle.id);
+                  setActiveTripId(null);
+                  setPendingCaptureVehicle(null);
+                }}
+                className="px-4 py-2 rounded-lg text-[12px] font-semibold text-white bg-red-500 hover:bg-red-600 transition-colors"
+              >
+                Iniciar captura
+              </button>
+            </>
+          }
+        >
+          <p className={cn('text-[13px] leading-relaxed', isDark ? 'text-zinc-300' : 'text-slate-600')}>
+            ¿Estás seguro de que deseas iniciar el proceso de captura de{' '}
+            <strong className={isDark ? 'text-zinc-100' : 'text-slate-900'}>
+              {pendingCaptureVehicle?.plate ?? ''}
+            </strong>?
+          </p>
+          <p className={cn('text-[12px] mt-2', isDark ? 'text-zinc-400' : 'text-slate-500')}>
+            Esta acción iniciará un proceso importante.
+          </p>
+        </Modal>
       </VehicleProvider>
     </ThemeContext.Provider>
   );

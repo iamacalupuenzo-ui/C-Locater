@@ -1,7 +1,7 @@
 # Definición de Producto — CLocater
 
 > Decisiones de UX, roles, perfiles y visibilidad de datos.
-> Actualizado: 2026-05-14 (Sesión 7 — rev final)
+> **Nota histórica:** C-Go fue eliminado del código en la Sesión 26. Las secciones 3, 5, 6 y 7 de este documento se conservan como registro de decisiones de producto pasadas, pero ya no reflejan el código vigente — el proyecto es mono-plataforma (C-Loc).
 
 ---
 
@@ -498,5 +498,180 @@ La lógica de `createCustomIcon` está intacta — el cambio solo suprime `isSel
 | 8 | Card del vehículo con multi-GPS | ⏳ Pendiente: definir si mostrar card compacta, card integrada con GPS, o mantener pill destacado (ver sección 8). |
 
 ---
+
+## 10. CaminosModule — UX y diseño (Sesión 27)
+
+### 10.1 Barra de acciones masivas
+
+Cuando se seleccionan filas en la tabla aparece una barra flotante en la parte inferior.
+
+| Propiedad | Decisión |
+|---|---|
+| Fondo | `bg-slate-50` con `border border-slate-200` — se diferencia del fondo blanco de la página sin ser oscura |
+| Sombra | `shadow-[0_12px_44px_rgba(0,0,0,0.13)]` — elevación suficiente para flotar sobre la tabla |
+| Radio | `rounded-xl` — consistente con el componente `Modal` |
+| Botones | Usan el componente `<Button>` con `variant="ghost"` para acciones ligeras y `variant="danger"` para "Eliminar" |
+| Iconos | Cada acción tiene su icono (`PowerOff`, `Copy`, `Send`, `Trash2`) |
+| Padding interno | `py-2` en los contenedores internos para altura suficiente |
+
+### 10.2 Orden de columnas
+
+| Orden | Columna |
+|:-----:|---------|
+| 1 | Checkbox |
+| 2 | Ruta |
+| 3 | Empresa |
+| 4 | Grupo |
+| 5 | Configuración |
+| 6 | Estado |
+| 7 | Acciones |
+
+### 10.3 Iconos de ordenamiento
+
+Los iconos `ArrowUpDown` en las cabeceras de columna ordenables son **siempre visibles** (`opacity-40`) — no se ocultan al no hacer hover. El usuario debe poder identificar qué columnas son ordenables sin tener que interactuar con la tabla.
+
+---
+
+## 11. VehicleTripView — Dropdown de filtro de eventos
+
+### 11.1 Consistencia con estilo FloatingMonitor
+
+El dropdown de "Filtrar" en el panel de eventos del viaje sigue el mismo estilo que el dropdown de "Tipo" en FloatingMonitor:
+
+| Propiedad | Valor |
+|-----------|-------|
+| Panel | `rounded-lg`, `shadow-[0_4px_20px_rgba(0,0,0,0.18)]` |
+| Opciones | `rounded-md`, `px-3 py-2`, text-xs |
+| Checkbox | `<Checkbox size="sm">` de la librería `ui/` |
+
+Esto garantiza que ambos filtros (eventos del viaje y tipo en FloatingMonitor) compartan el mismo lenguaje visual aunque funcionen distinto (multi-select con checkbox vs single-select).
+
+---
+
+---
+
+## 12. VehicleCaptureView — Módulo de Parqueo Seguro (Sesión 28)
+
+### 12.1 Concepto y flujo
+
+El módulo de **parqueo seguro** (captura) se activa desde el menú de acciones de un vehículo. Reemplaza la vista del mapa principal con una pantalla dedicada de tres columnas.
+
+**Flujo de activación:**
+1. Usuario abre acciones de un vehículo → selecciona "Parqueo" (ícono `ShieldAlert`)
+2. `App.tsx` recibe el evento `captureVehicle` → agrega el vehículo a `capturedVehicles[]` y setea `activeCaptureId`
+3. El sidebar de navegación se colapsa automáticamente (mismo comportamiento que viajes) vía `collapseSidebar`
+4. Al cerrar la vista, `restoreSidebar` devuelve el sidebar a su estado previo
+
+### 12.2 Layout de tres columnas
+
+| Columna | Ancho | Contenido |
+|---------|-------|-----------|
+| Sidebar de vehículo | 322px fijo | `VehicleDetailPanel` con tabs Info / GPS / Posiciones |
+| Panel de Posiciones | 260px fijo | Lista de coordenadas con timestamp y dirección |
+| Mapa de tracking | `flex-1` | `VehicleTrackingMap` + barra de progreso de etapas |
+
+### 12.3 Barra de progreso de captura
+
+Overlay flotante sobre el mapa con tres etapas lineales:
+
+| Etapa | Estado visual |
+|-------|--------------|
+| Inicio de captura | Círculo relleno verde + timestamp |
+| En proceso | Círculo outline pulsante verde |
+| Finalizado | Círculo gris (pendiente) |
+
+### 12.4 Dock picker — Panel "Posiciones" reposicionable
+
+El operador puede reubicar el panel de posiciones sin interrumpir el monitoreo. El handle es un ícono `GripVertical` en el header del panel → abre un popover con tres opciones:
+
+| Opción | Posición resultante |
+|--------|---------------------|
+| **Izquierda** (default) | Entre sidebar y mapa |
+| **Derecha** | A la derecha del mapa |
+| **Abajo** | Bajo el contenido del sidebar, el mapa se expande |
+
+Cada opción incluye un mini diagrama SVG del layout resultante para que el operador anticipe el resultado antes de seleccionar.
+
+**Restricción automática:** si la altura del contenedor es menor a 480px, la opción "Abajo" se deshabilita visualmente (`opacity-35`) y muestra tooltip explicativo. Si el panel ya estaba en posición "Abajo" cuando la pantalla encoge por debajo del umbral, se resetea automáticamente a "Izquierda".
+
+### 12.5 Comportamiento del dock "Abajo"
+
+Cuando el panel de posiciones está docked abajo del sidebar:
+
+- `VehicleDetailPanel` toma su altura natural de contenido (`grow-0 shrink`) — no se expande artificialmente
+- El panel de posiciones ocupa todo el espacio restante (`flex-1 min-h-[160px]`)
+- Si el operador colapsa secciones del VehicleDetailPanel (acordeones / tabs), el panel de posiciones sube automáticamente para llenar el espacio liberado
+
+**Invariante clave:** `VehicleDetailPanel` siempre está en la misma posición del árbol React independientemente del dock activo. Solo el CSS wrapper cambia. Esto preserva el estado interno (qué tab está activo, qué acordeones están abiertos) al cambiar de dock.
+
+### 12.6 Historial de posiciones
+
+El panel lista las coordenadas GPS capturadas durante el recorrido:
+
+- **Última posición**: destacada con fondo `bg-blue-50/70 border-blue-400/80` y badge "Última" en azul
+- **Posiciones anteriores**: fondo blanco con `border-transparent hover:border-slate-200`
+- **Click en ítem**: copia las coordenadas al portapapeles con feedback visual "Copiado ✓"
+- **Scroll hint**: flecha `ChevronDown` animada aparece cuando hay más contenido por debajo del viewport visible. Se re-evalúa al cambiar el dock o el estado de visibilidad del panel (con 120ms de delay para esperar la animación de transición)
+
+### 12.7 Modales de GPS
+
+Al abrir la vista de captura se evalúa automáticamente el estado de los dispositivos GPS:
+
+| Condición | Modal mostrado |
+|-----------|---------------|
+| GPS principal desconectado sin alternativas | "GPS no disponible" — muestra última posición conocida |
+| GPS principal sin señal pero hay otro disponible | "GPS principal sin señal" — ofrece cambiar al disponible |
+| GPS principal reportando correctamente | Sin modal |
+
+---
+
+---
+
+## 13. Dashboard — Vista de resumen operativo (Sesión 29)
+
+### Concepto
+
+El Dashboard es la puerta de entrada al sistema: la primera opción de navegación visible en el sidebar, por encima de "Explorar". Ofrece un estado global de la flota en una sola pantalla, sin necesidad de abrir el mapa ni buscar vehículos individuales.
+
+Responde a la pregunta: **"¿Cómo está mi flota ahora mismo?"**
+
+### Posición en la navegación
+
+- Nav item: `Dashboard`, icono `LayoutDashboard`, atajo de teclado `D`
+- Ubicación: **primera posición** en `NAV_ITEMS`, sobre "Explorar"
+- Comportamiento: no tiene hijos ni dropdown; navega directo a `activeView === 'dashboard'`
+
+### Métricas en KPI cards (fila superior)
+
+| Card | Métrica | Color | Icono |
+|------|---------|-------|-------|
+| Total unidades | `FLEET_DATA.length` | Azul | Truck |
+| Activos | `status === 'active'` | Verde | Activity |
+| Detenidos | `status === 'stopped'` | Ámbar | TrendingUp |
+| Sin señal | `status === 'offline'` | Rojo | WifiOff |
+| Con alarma | `alarmCount > 0` | Naranja | AlertTriangle |
+
+Las métricas se computan con `useMemo` sobre `FLEET_DATA`. Son datos locales (mock); en producción se conectarían a una API de flota en tiempo real.
+
+### Mapa mundial
+
+- Propósito: visualizar la distribución geográfica de las unidades por país
+- Implementación: Leaflet (`MapContainer`) con tiles CartoDB en modo claro (`light_nolabels`) u oscuro (`dark_nolabels`) según `isDark`
+- Zoom inicial: 3 (nivel continental). El usuario puede hacer scroll para acercar
+- Marcadores: burbujas circulares `L.divIcon` con el conteo de unidades centrado. Tamaño escala con el count (34/42/52px). Color distinto por país
+- Tooltip al hover: nombre del país + conteo
+
+### Panel lateral de países (220px)
+
+- **Total km recorridos**: suma de odómetros de toda la flota, compactado como `Xk km`
+- **Lista de países**: cada entrada muestra nombre, conteo numérico y barra de progreso horizontal relativa al país con más unidades
+- Los datos de países son mock hasta integración real con la API
+
+### Comportamiento de temas
+
+El dashboard respeta `isDark` del contexto global (`ThemeContext`):
+- Fondo: `zinc-950` (oscuro) / `neutral-50` (claro)
+- Cards: `zinc-900` / `white`
+- Mapa: `dark_nolabels` / `light_nolabels`
 
 *Fin del documento definicion.md*

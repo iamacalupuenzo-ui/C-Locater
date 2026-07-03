@@ -411,6 +411,37 @@ function FitRouteBounds({ route, vehiclePos }: { route: TripRoute; vehiclePos: [
   return null;
 }
 
+// ─── EventLegend — leyenda de tipos de evento sobre el mapa ────────────────
+const EVENT_LABELS: Record<TripEventType, string> = {
+  speeding:           'Exceso de velocidad',
+  hard_braking:       'Frenado brusco',
+  harsh_acceleration: 'Aceleración brusca',
+  sharp_turn:         'Giro brusco',
+};
+
+function EventLegend({ groups }: { groups: TripEventGroup[] }) {
+  const types = [...new Set(groups.map(g => g.type))];
+  if (types.length === 0) return null;
+
+  return (
+    <div className="absolute bottom-3 right-3 z-[1000] bg-white/90 backdrop-blur-sm shadow-[0_2px_12px_rgba(0,0,0,0.12)] rounded-lg p-2.5 flex flex-col gap-1.5">
+      {types.map(type => (
+        <div key={type} className="flex items-center gap-2 text-[11px] text-slate-700">
+          <span
+            className="flex items-center justify-center rounded"
+            style={{ width: 18, height: 18, background: EVENT_COLORS[type] }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              dangerouslySetInnerHTML={{ __html: EVENT_SVG[type] }} />
+          </span>
+          <span className="font-medium">{EVENT_LABELS[type]}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ─── Main component ────────────────────────────────────────────────────────
 interface VehicleTrackingMapProps {
   vehicle: Vehicle;
@@ -527,6 +558,12 @@ export function VehicleTrackingMap({ vehicle, isDark = false, activeEventTypes =
           <EventMarkers groups={eventGroups} activeEventTypes={activeEventTypes} zoom={mapZoom} />
         )}
       </MapContainer>
+
+      {/* Leyenda de tipos de evento (solo cuando hay eventos visibles) */}
+      {eventGroups && eventGroups.length > 0 && (
+        <EventLegend groups={eventGroups} />
+      )}
+
     </div>
   );
 }

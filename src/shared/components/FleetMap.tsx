@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapContainer, TileLayer, Marker, useMapEvents, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { X, Clock, MapPin, Bike, Car, Truck, Bus, Settings2, Plus, Minus, Lock, ShieldAlert, Route, MoreHorizontal, Shield, Layers, Share2, Sun, Moon, LocateFixed, PowerOff, Power } from 'lucide-react';
+import { X, Clock, MapPin, Bike, Car, Truck, Bus, Settings2, Plus, Minus, Lock, ShieldAlert, Route, MoreHorizontal, Shield, Layers, Share2, Sun, Moon, LocateFixed, PowerOff, Power, Gauge, Milestone, Battery, Bell, MonitorCheck, Copy } from 'lucide-react';
 
 import type { GpsDevice, Vehicle } from '../lib/data';
 import { useVehicles } from '../lib/VehicleContext';
@@ -589,6 +589,9 @@ export function FleetMap({
     window.addEventListener('vehicleSelected', handleVehicleSelect);
     window.addEventListener('gpsDeviceSelected', handleGpsSelect);
     window.addEventListener('vehicleGpsLayerToggle', handleGpsLayerToggle);
+    const closeCard = () => setCardVehicleId(null);
+    window.addEventListener('captureVehicle', closeCard);
+    window.addEventListener('tripVehicle', closeCard);
 
     (window as any)._closeFleetMarker = () => {
       setHighlightedId(null);
@@ -608,6 +611,8 @@ export function FleetMap({
       window.removeEventListener('vehicleSelected', handleVehicleSelect);
       window.removeEventListener('gpsDeviceSelected', handleGpsSelect);
       window.removeEventListener('vehicleGpsLayerToggle', handleGpsLayerToggle);
+      window.removeEventListener('captureVehicle', closeCard);
+      window.removeEventListener('tripVehicle', closeCard);
       delete (window as any)._closeFleetMarker;
       delete (window as any)._closeGpsCard;
     };
@@ -696,6 +701,9 @@ export function FleetMap({
             ? 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png'
             : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
           }
+          subdomains={mapDark ? 'abcd' : 'abcd'}
+          maxZoom={20}
+          maxNativeZoom={19}
         />
 
         {/* Selected Route rendering */}
@@ -954,48 +962,91 @@ export function FleetMap({
             >
               {/* Header */}
               {(() => {
-                const ignition = v.gpsDevices?.[0]?.ignition ?? null;
-                const ignitionOn = ignition === 'on';
+                const ignition    = v.gpsDevices?.[0]?.ignition ?? null;
+                const ignitionOn  = ignition === 'on';
+                const alarmCount  = v.alarmCount ?? 0;
                 return (
-                  <div className="flex items-start gap-2 px-3.5 pt-3 pb-2.5">
-                    <div className="flex-1 min-w-0">
-                      {/* Fila 1: placa + estado GPS + encendido */}
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={cn('text-[15px] font-bold leading-none tracking-tight', isDark ? 'text-zinc-50' : 'text-gray-900')}>{v.plate.replace(/-/g, '')}</span>
-                        <div className="inline-flex items-center gap-1 rounded-full px-2 py-[3px]" style={{ background: `${statusColor}18` }}>
-                          <LocateFixed className="w-2.5 h-2.5 shrink-0" style={{ color: statusColor }} strokeWidth={2} />
-                          <span className="text-[9.5px] font-semibold leading-none" style={{ color: statusColor }}>{statusLabel}</span>
+                  <div className="px-3.5 pt-3 pb-2.5">
+                    {/* Fila 1: placa + engine code + close */}
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className={cn('text-[15px] font-bold leading-none tracking-tight', isDark ? 'text-zinc-50' : 'text-gray-900')}>{v.plate.replace(/-/g, '')}</span>
+                          <span className={cn('text-[11px] font-medium leading-none', isDark ? 'text-zinc-500' : 'text-slate-400')}>{v.engineCode}</span>
                         </div>
-                        {ignition !== null && (() => {
-                          const ignColor = ignitionOn ? '#34C759' : '#94a3b8';
-                          return (
-                            <div className="inline-flex items-center gap-1 rounded-full px-2 py-[3px]" style={{ background: `${ignColor}18` }}>
-                              {ignitionOn
-                                ? <Power    className="w-2.5 h-2.5 shrink-0" style={{ color: ignColor }} strokeWidth={2} />
-                                : <PowerOff className="w-2.5 h-2.5 shrink-0" style={{ color: ignColor }} strokeWidth={2} />
-                              }
-                              <span className="text-[9.5px] font-semibold leading-none" style={{ color: ignColor }}>{ignitionOn ? 'Encendido' : 'Apagado'}</span>
-                            </div>
-                          );
-                        })()}
+                        {/* Fila 2: badges GPS + encendido */}
+                        <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                          <div className="inline-flex items-center gap-1 rounded-full px-2 py-[3px]" style={{ background: `${statusColor}18` }}>
+                            <LocateFixed className="w-2.5 h-2.5 shrink-0" style={{ color: statusColor }} strokeWidth={2} />
+                            <span className="text-[9.5px] font-semibold leading-none" style={{ color: statusColor }}>{statusLabel}</span>
+                          </div>
+                          {ignition !== null && (() => {
+                            const ignColor = ignitionOn ? '#34C759' : '#94a3b8';
+                            return (
+                              <div className="inline-flex items-center gap-1 rounded-full px-2 py-[3px]" style={{ background: `${ignColor}18` }}>
+                                {ignitionOn
+                                  ? <Power    className="w-2.5 h-2.5 shrink-0" style={{ color: ignColor }} strokeWidth={2} />
+                                  : <PowerOff className="w-2.5 h-2.5 shrink-0" style={{ color: ignColor }} strokeWidth={2} />
+                                }
+                                <span className="text-[9.5px] font-semibold leading-none" style={{ color: ignColor }}>{ignitionOn ? 'Encendido' : 'Apagado'}</span>
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </div>
-                      {/* Fila 2: fecha y hora */}
-                      <div className="flex items-center gap-1.5 mt-3">
-                        <Clock className={cn('w-3 h-3 shrink-0', isDark ? 'text-zinc-600' : 'text-slate-300')} strokeWidth={1.75} />
-                        <span className={cn('text-[10.5px] font-medium', isDark ? 'text-zinc-500' : 'text-slate-400')}>{formatLastSeen(v.lastSeen)}</span>
-                      </div>
-                      {/* Fila 3: ubicación */}
-                      <div className="flex items-start gap-1.5 mt-0.5">
-                        <MapPin className="w-3 h-3 text-blue-500 shrink-0 mt-[1px]" strokeWidth={1.75} />
+                      <button
+                        onClick={() => handleCardClose()}
+                        className={cn('w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0 mt-0.5', isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-500 hover:text-zinc-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600')}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    {/* Fila 3: fecha */}
+                    <div className="flex items-center gap-1.5 mt-2.5">
+                      <Clock className={cn('w-3 h-3 shrink-0', isDark ? 'text-zinc-600' : 'text-slate-300')} strokeWidth={1.75} />
+                      <span className={cn('text-[10.5px] font-medium', isDark ? 'text-zinc-500' : 'text-slate-400')}>{formatLastSeen(v.lastSeen)}</span>
+                    </div>
+
+                    {/* Fila 4: dirección + coordenadas */}
+                    <div className="flex items-start gap-1.5 mt-0.5">
+                      <MapPin className="w-3 h-3 text-blue-500 shrink-0 mt-[1px]" strokeWidth={1.75} />
+                      <div className="flex flex-col gap-0.5 min-w-0">
                         <span className={cn('text-[10.5px] font-medium leading-snug line-clamp-2', isDark ? 'text-zinc-400' : 'text-slate-500')}>{v.address}</span>
+                        <button
+                          onClick={() => navigator.clipboard.writeText(v.coords)}
+                          className={cn('group flex items-center gap-1 text-[9.5px] font-mono font-medium leading-none text-left transition-colors', isDark ? 'text-zinc-600 hover:text-blue-400' : 'text-slate-400 hover:text-blue-500')}
+                        >
+                          {v.coords}
+                          <Copy className="w-2.5 h-2.5 opacity-0 group-hover:opacity-60 transition-opacity shrink-0" />
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleCardClose()}
-                      className={cn('w-6 h-6 rounded-full flex items-center justify-center transition-colors shrink-0', isDark ? 'bg-zinc-800 hover:bg-zinc-700 text-zinc-500 hover:text-zinc-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600')}
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+
+                    {/* Fila 5: stats */}
+                    <div className={cn('flex items-center mt-2.5 pt-2.5 border-t', isDark ? 'border-zinc-800' : 'border-slate-100')}>
+                      {[
+                        { icon: Milestone, value: v.odometer, label: 'Odómetro' },
+                        { icon: Gauge,     value: v.speed,    label: 'Velocidad' },
+                        { icon: Battery,   value: v.fuel,     label: 'Combustible' },
+                        { icon: Bell,      value: alarmCount > 0 ? `${alarmCount} ev.` : 'Sin ev.', label: 'Alertas', isAlarm: alarmCount > 0 },
+                      ].map((stat, i, arr) => (
+                        <div key={i} className="flex flex-col items-center gap-1 flex-1 relative group cursor-default">
+                          {stat.isAlarm
+                            ? <Bell className="w-3.5 h-3.5 text-orange-500 opacity-80 group-hover:opacity-100" strokeWidth={1.75} />
+                            : <stat.icon className={cn('w-3.5 h-3.5 opacity-80 group-hover:opacity-100', isDark ? 'text-blue-400' : 'text-brand')} strokeWidth={1.75} />
+                          }
+                          <span className={cn('text-[10.5px] font-semibold tabular-nums', stat.isAlarm ? 'text-orange-500' : (isDark ? 'text-zinc-200' : 'text-slate-700'))}>
+                            {stat.value}
+                          </span>
+                          {i < arr.length - 1 && <div className={cn('absolute right-0 top-1/2 -translate-y-1/2 w-px h-6', isDark ? 'bg-zinc-800' : 'bg-slate-100')} />}
+                          <div className="absolute bottom-full mb-1.5 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-50">
+                            <div className="bg-slate-800 text-white text-[10px] font-medium px-2 py-1 rounded-md whitespace-nowrap shadow-lg">{stat.label}</div>
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-[4px] border-transparent border-t-slate-800" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 );
               })()}
@@ -1027,9 +1078,10 @@ export function FleetMap({
                 )}
                 <div className={cn('flex items-stretch gap-px rounded-xl overflow-hidden', isDark ? 'bg-zinc-800' : 'bg-slate-100')}>
                   {[
-                    { icon: Lock,        label: 'Parqueo',   onClick: undefined },
-                    { icon: ShieldAlert, label: 'Captura',   onClick: () => window.dispatchEvent(new CustomEvent('captureVehicle', { detail: v })) },
-                    { icon: Route,       label: 'Viajes',    onClick: () => window.dispatchEvent(new CustomEvent('tripVehicle', { detail: v })) },
+                    { icon: Route,        label: 'Viajes',     onClick: () => window.dispatchEvent(new CustomEvent('tripVehicle',   { detail: v })) },
+                    { icon: ShieldAlert,  label: 'Captura',    onClick: () => window.dispatchEvent(new CustomEvent('captureVehicle',{ detail: v })) },
+                    { icon: MonitorCheck, label: 'Monitoreo',  onClick: () => window.dispatchEvent(new CustomEvent('monitorVehicle',{ detail: v })) },
+                    { icon: Lock,         label: 'Parqueo',    onClick: undefined },
                   ].map(({ icon: Icon, label, onClick }) => (
                     <button
                       key={label}

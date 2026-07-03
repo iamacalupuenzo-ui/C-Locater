@@ -13,11 +13,12 @@ interface ModalProps {
   footer?: ReactNode;
   maxWidth?: 'sm' | 'md' | 'lg';
   className?: string;
+  z?: string;
 }
 
 const maxWidths = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg' };
 
-export function Modal({ isOpen, onClose, title, icon: Icon, children, footer, maxWidth = 'md', className }: ModalProps) {
+export function Modal({ isOpen, onClose, title, icon: Icon, children, footer, maxWidth = 'md', className, z = '100' }: ModalProps) {
   const handleEscape = useCallback((e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }, [onClose]);
 
   useEffect(() => {
@@ -30,7 +31,7 @@ export function Modal({ isOpen, onClose, title, icon: Icon, children, footer, ma
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: parseInt(z) }}>
           {/* Overlay — más suave */}
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

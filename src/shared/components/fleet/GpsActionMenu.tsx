@@ -1,7 +1,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { MapPin, Route, Lock, Zap, Copy, Pin, PinOff } from 'lucide-react';
+import { MapPin, Route, Lock, Zap, Copy, Pin, PinOff, MonitorCheck } from 'lucide-react';
 import { cn, formatLastSeen } from '../../lib/utils';
 import type { UserRole } from '../../lib/utils';
 import type { Vehicle, GpsDevice } from '../../lib/data';
@@ -28,11 +28,12 @@ interface GpsActionMenuProps {
   onCommand?: () => void;
   onTogglePin?: () => void;
   isPinned?: boolean;
+  onMonitor?: () => void;
 }
 
 export function GpsActionMenu({
   triggerRef, onClose, vehicle, gpsName, gpsDevice, onShowToast,
-  onFlyTo, onTrips, onParqueo, onCommand, onTogglePin, isPinned = false,
+  onFlyTo, onTrips, onParqueo, onCommand, onTogglePin, isPinned = false, onMonitor,
 }: GpsActionMenuProps) {
   const { isDark } = useTheme();
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -130,6 +131,17 @@ export function GpsActionMenu({
             </button>
           );
         })}
+      <button
+        onClick={() => {
+          if (onMonitor) { onMonitor(); }
+          else { window.dispatchEvent(new CustomEvent('monitorVehicle', { detail: vehicle })); }
+          onClose();
+        }}
+        className={itemCls}
+      >
+        <MonitorCheck className={iconCls} strokeWidth={1.75} />
+        <span className="text-[11px] font-medium">Monitoreo</span>
+      </button>
       <div className={dividerCls} />
       <button onClick={handleCopyInfo} className={itemCls}>
         <Copy className={iconCls} strokeWidth={1.75} />

@@ -20,7 +20,9 @@
       "Bash(rmdir lib/ components/ui components)",
       "Bash(grep -E \"^d.*\\(lib|components\\)$\")",
       "Bash(npx shadcn@latest add https://tweakcn.com/r/themes/amber-minimal.json -y)",
-      "Bash(timeout 15 npm run build)"
+      "Bash(timeout 15 npm run build)",
+      "Read(//c/Users/emacalupu/.claude/**)",
+      "WebSearch"
     ]
   }
 }

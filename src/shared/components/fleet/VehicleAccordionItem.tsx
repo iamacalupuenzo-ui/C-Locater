@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   MapPin, Copy, ChevronDown, ChevronRight, Pencil, Power, Share2,
-  Gauge, Compass, Activity, Battery, Bell, Lock, LocateFixed,
+  Gauge, Compass, Milestone, Battery, Bell, Lock, LocateFixed,
   Route, FileText, Navigation, Zap, X, Car, Bike, Truck, Bus,
-  Terminal, MoreVertical, Pin,
+  Terminal, MoreVertical, Pin, MonitorCheck,
 } from 'lucide-react';
 import { cn, formatLastSeen, formatLastSeenMini, formatLastSeenMiniSecs, formatLastSeenWithSecs } from '../../lib/utils';
 import type { UserRole } from '../../lib/utils';
@@ -24,6 +24,7 @@ function EsadActionMenu({
   onTrips,
   onParqueo,
   onCommand,
+  vehicle,
 }: {
   triggerRef: React.RefObject<HTMLButtonElement | null>;
   onClose: () => void;
@@ -31,6 +32,7 @@ function EsadActionMenu({
   onTrips: () => void;
   onParqueo: () => void;
   onCommand: () => void;
+  vehicle: Vehicle;
 }) {
   const rect = triggerRef.current?.getBoundingClientRect();
   const top  = rect ? rect.bottom + 6 : 0;
@@ -45,10 +47,14 @@ function EsadActionMenu({
   }, [onClose, triggerRef]);
 
   const items = [
-    { icon: MapPin, label: 'Ubicación', onClick: () => { onFlyTo(); onClose(); } },
-    { icon: Route,  label: 'Viajes',    onClick: () => { onTrips();   onClose(); } },
-    { icon: Lock,   label: 'Parqueo',   onClick: () => { onParqueo(); onClose(); } },
-    { icon: Zap,    label: 'Comando',   onClick: () => { onCommand(); onClose(); } },
+    { icon: MapPin,       label: 'Ubicación', onClick: () => { onFlyTo();   onClose(); } },
+    { icon: Route,        label: 'Viajes',    onClick: () => { onTrips();   onClose(); } },
+    { icon: Lock,         label: 'Parqueo',   onClick: () => { onParqueo(); onClose(); } },
+    { icon: MonitorCheck, label: 'Monitoreo', onClick: () => {
+      window.dispatchEvent(new CustomEvent('monitorVehicle', { detail: vehicle }));
+      onClose();
+    }},
+    { icon: Zap,          label: 'Comando',   onClick: () => { onCommand(); onClose(); } },
   ];
 
   return (
@@ -473,55 +479,60 @@ export function VehicleAccordionItem({
                 </div>
               </div>
 
-              {/* ZONA 2.5 — TELEMETRÍA — solo client (no operator) */}
-              {userRole !== 'operator' && <div className="flex items-center pb-3">
-                {(userRole === 'admin'
+              {/* ZONA 2.5 — TELEMETRÍA */}
+              {userRole !== 'operator' && (() => {
+                const alarmVal = vehicle.alarmCount ?? 0;
+                const alarmLabel = alarmVal === 0 ? 'Sin ev.' : `${alarmVal} ev.`;
+                const stats = userRole === 'admin'
                   ? [
-                      { icon: Gauge,   value: vehicle.speed,                  label: 'Velocidad', isAlarm: false, colorClass: null as string | null },
-                      { icon: Battery, value: vehicle.fuel,                   label: 'Batería',   isAlarm: false, colorClass: getBatteryColor(vehicle.fuel) },
-                      { icon: Bell,    value: String(vehicle.alarmCount ?? 0), label: 'Alarmas',  isAlarm: true,  colorClass: null as string | null },
+                      { icon: Gauge,     value: vehicle.speed,    label: 'Velocidad',    isAlarm: false, colorClass: null as string | null },
+                      { icon: Battery,   value: vehicle.fuel,     label: 'Combustible',  isAlarm: false, colorClass: getBatteryColor(vehicle.fuel) },
+                      { icon: Bell,      value: alarmLabel,       label: 'Alertas',      isAlarm: alarmVal > 0, colorClass: null as string | null },
                     ]
                   : userRole === 'esad'
                   ? [
-                      { icon: Activity, value: vehicle.odometer,                label: 'Odómetro',  isAlarm: false, colorClass: null as string | null },
-                      { icon: Gauge,    value: vehicle.speed,                   label: 'Velocidad', isAlarm: false, colorClass: null as string | null },
-                      { icon: Battery,  value: vehicle.fuel,                    label: 'Batería',   isAlarm: false, colorClass: getBatteryColor(vehicle.fuel) },
-                      { icon: Bell,     value: String(vehicle.alarmCount ?? 0), label: 'Alarmas',   isAlarm: true,  colorClass: null as string | null },
+                      { icon: Milestone, value: vehicle.odometer, label: 'Odómetro',     isAlarm: false, colorClass: null as string | null },
+                      { icon: Gauge,     value: vehicle.speed,    label: 'Velocidad',    isAlarm: false, colorClass: null as string | null },
+                      { icon: Battery,   value: vehicle.fuel,     label: 'Combustible',  isAlarm: false, colorClass: getBatteryColor(vehicle.fuel) },
+                      { icon: Bell,      value: alarmLabel,       label: 'Alertas',      isAlarm: alarmVal > 0, colorClass: null as string | null },
                     ]
-                  : [
-                      { icon: Activity, value: vehicle.odometer,  label: 'Odómetro',  isAlarm: false, colorClass: null as string | null },
-                      { icon: Gauge,    value: vehicle.speed,     label: 'Velocidad', isAlarm: false, colorClass: null as string | null },
-                      { icon: Compass,  value: vehicle.direction, label: 'Dirección', isAlarm: false, colorClass: null as string | null },
-                      { icon: Battery,  value: vehicle.fuel,      label: 'Batería',   isAlarm: false, colorClass: getBatteryColor(vehicle.fuel) },
-                    ]
-                ).map((stat, i) => (
-                  <React.Fragment key={i}>
-                    <div className="flex flex-col items-center gap-1 flex-1 relative group cursor-default">
-                      {stat.isAlarm ? (
-                        <div className="relative">
-                          <stat.icon className="w-3.5 h-3.5 text-orange-500 opacity-80 group-hover:opacity-100 transition-opacity" strokeWidth={1.75} />
-                          {Number(stat.value) > 0 && (
-                            <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center rounded-full bg-orange-500 text-white text-[8px] font-bold leading-none">
-                              {Number(stat.value) > 99 ? '99+' : stat.value}
-                            </span>
+                  : /* client */ [
+                      { icon: Milestone, value: vehicle.odometer, label: 'Odómetro',     isAlarm: false, colorClass: null as string | null },
+                      { icon: Gauge,     value: vehicle.speed,    label: 'Velocidad',    isAlarm: false, colorClass: null as string | null },
+                      { icon: Battery,   value: vehicle.fuel,     label: 'Combustible',  isAlarm: false, colorClass: getBatteryColor(vehicle.fuel) },
+                      { icon: Bell,      value: alarmLabel,       label: 'Alertas',      isAlarm: alarmVal > 0, colorClass: null as string | null },
+                    ];
+                return (
+                  <div className="flex items-center pb-3">
+                    {stats.map((stat, i) => (
+                      <React.Fragment key={i}>
+                        {i > 0 && <div className={cn('w-px self-stretch mx-0.5', isDark ? 'bg-zinc-700' : 'bg-slate-100')} />}
+                        <div className="flex flex-col items-center gap-1 flex-1 relative group cursor-default">
+                          {stat.isAlarm ? (
+                            <div className="relative">
+                              <Bell className="w-3.5 h-3.5 text-orange-500 opacity-80 group-hover:opacity-100 transition-opacity" strokeWidth={1.75} />
+                              <span className="absolute -top-1.5 -right-2 min-w-[14px] h-[14px] px-0.5 flex items-center justify-center rounded-full bg-orange-500 text-white text-[8px] font-bold leading-none">
+                                {alarmVal > 99 ? '99+' : alarmVal}
+                              </span>
+                            </div>
+                          ) : (
+                            <stat.icon className={cn('w-3.5 h-3.5 opacity-80 group-hover:opacity-100 transition-opacity', stat.colorClass ?? brandCls)} strokeWidth={1.75} />
                           )}
+                          <span className={cn('text-[11px] font-semibold tabular-nums',
+                            stat.isAlarm ? 'text-orange-500' : stat.colorClass ?? (isDark ? 'text-zinc-200' : 'text-slate-700')
+                          )}>
+                            {stat.value}
+                          </span>
+                          <div className="absolute bottom-full mb-1.5 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-50">
+                            <div className="bg-slate-800 text-white text-[10px] font-medium px-2 py-1 rounded-md whitespace-nowrap shadow-lg">{stat.label}</div>
+                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-[4px] border-transparent border-t-slate-800" />
+                          </div>
                         </div>
-                      ) : (
-                        <stat.icon className={cn('w-3.5 h-3.5 opacity-80 group-hover:opacity-100 transition-opacity', stat.colorClass ?? brandCls)} strokeWidth={1.75} />
-                      )}
-                      <span className={cn('text-[11px] font-semibold tabular-nums',
-                        stat.isAlarm && Number(stat.value) > 0 ? 'text-orange-500' : stat.colorClass ?? (isDark ? 'text-zinc-200' : 'text-slate-700')
-                      )}>
-                        {stat.isAlarm ? (Number(stat.value) === 0 ? 'Sin eventos' : `${stat.value} eventos`) : stat.value}
-                      </span>
-                      <div className="absolute bottom-full mb-1.5 opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 translate-y-1 group-hover:translate-y-0 z-50">
-                        <div className="bg-slate-800 text-white text-[10px] font-medium px-2 py-1 rounded-md whitespace-nowrap shadow-lg">{stat.label}</div>
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-[4px] border-transparent border-t-slate-800" />
-                      </div>
-                    </div>
-                  </React.Fragment>
-                ))}
-              </div>}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                );
+              })()}
 
               {/* GPS button */}
               {showGpsButton && (
@@ -594,9 +605,12 @@ export function VehicleAccordionItem({
                 )}
                 {/* Posición 4 */}
                 {userRole === 'operator' ? (
-                  <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}>
-                    <Navigation className="w-4 h-4" strokeWidth={1.75} />
-                    <span className="text-[10px] font-semibold">Conducción</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('monitorVehicle', { detail: vehicle })); }}
+                    className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}
+                  >
+                    <MonitorCheck className="w-4 h-4" strokeWidth={1.75} />
+                    <span className="text-[10px] font-semibold">Monitoreo</span>
                   </button>
                 ) : userRole === 'client' ? (
                   <button onClick={(e) => e.stopPropagation()} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? 'text-zinc-400 hover:text-red-400 hover:bg-red-900/20' : 'text-slate-500 hover:text-red-500 hover:bg-red-50')}>
@@ -604,9 +618,12 @@ export function VehicleAccordionItem({
                     <span className="text-[10px] font-semibold">Bloquear</span>
                   </button>
                 ) : (
-                  <button onClick={(e) => { e.stopPropagation(); setShowCommandModal(true); }} className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}>
-                    <Zap className="w-4 h-4" strokeWidth={1.75} />
-                    <span className="text-[10px] font-semibold">Comando</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('monitorVehicle', { detail: vehicle })); }}
+                    className={cn('flex flex-col items-center gap-1.5 px-3 py-2 rounded-lg transition-colors', isDark ? `text-zinc-400 ${brandHover}` : `text-slate-500 ${brandHover}`)}
+                  >
+                    <MonitorCheck className="w-4 h-4" strokeWidth={1.75} />
+                    <span className="text-[10px] font-semibold">Monitoreo</span>
                   </button>
                 )}
               </div>}

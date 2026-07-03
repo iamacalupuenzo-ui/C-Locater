@@ -56,10 +56,12 @@ export function Checkbox({
     >
       <div
         className={cn(
-          'flex items-center justify-center border transition-colors shadow-sm shrink-0',
+          'flex items-center justify-center border shrink-0',
           s.box,
-          checked || indeterminate
+          checked && !indeterminate
             ? 'bg-brand border-brand'
+            : indeterminate
+            ? 'bg-brand/10 border-brand/40'
             : 'bg-white border-gray-300 hover:border-gray-400'
         )}
       >
@@ -67,7 +69,7 @@ export function Checkbox({
           <Check className={cn(s.icon, 'text-white')} strokeWidth={3} />
         )}
         {indeterminate && (
-          <div className={cn(s.dash, 'bg-brand rounded-full')} />
+          <div className={cn(s.dash, 'bg-brand/60 rounded-full')} />
         )}
       </div>
 
