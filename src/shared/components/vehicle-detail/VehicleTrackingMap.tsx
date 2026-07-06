@@ -52,7 +52,7 @@ const EVENT_COLORS: Record<TripEventType, string> = {
 // ─── Marker factory: icono SVG subordinado a los pins A/B ─────────────────
 // Base sizes son intencionalmente menores a los 28px de A/B.
 // El zoom aplica escala exponencial (pow 1.25) clampeada entre 0.65× y 1.3×.
-function createEventMarkerIcon(
+export function createEventMarkerIcon(
   type: TripEventType,
   active: boolean,
   count = 1,
@@ -97,7 +97,7 @@ function createEventMarkerIcon(
 // Label desplazado al costado para que la línea de ruta no tape el texto.
 // A (origen): label arriba-izquierda, dot abajo-derecha.
 // B (destino): label arriba-derecha, dot abajo-izquierda.
-function createRouteMarkerIcon(type: 'origin' | 'dest'): L.DivIcon {
+export function createRouteMarkerIcon(type: 'origin' | 'dest'): L.DivIcon {
   const color    = type === 'origin' ? '#3b82f6' : '#10b981';
   const letter   = type === 'origin' ? 'A' : 'B';
   const isOrigin = type === 'origin';
@@ -217,7 +217,7 @@ const FLOW_CSS = `
 .event-ring-expand { animation: event-ring-expand 1.3s ease-out infinite; }
 `;
 let flowCssInjected = false;
-function injectFlowCss() {
+export function injectFlowCss() {
   if (flowCssInjected) return;
   flowCssInjected = true;
   const el = document.createElement('style');

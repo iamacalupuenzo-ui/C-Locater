@@ -674,4 +674,50 @@ El dashboard respeta `isDark` del contexto global (`ThemeContext`):
 - Cards: `zinc-900` / `white`
 - Mapa: `dark_nolabels` / `light_nolabels`
 
+---
+
+## 14. LiveTrackingView — Posiciones en el monitoreo en vivo (Sesión 31)
+
+### Cambio en el header de la unidad
+
+Las métricas de telemetría del header (Odómetro, Velocidad, Combustible, Alertas) **se eliminaron** de la vista de monitoreo en vivo. Esa información ya está disponible en otras vistas (acordeón de flota, GpsPopover, captura); en monitoreo el foco es video + ubicación.
+
+En su lugar hay un único botón **"Posiciones"** (toggle Eye/EyeOff):
+
+| Estado | Estilo |
+|--------|--------|
+| Inactivo | Pill con borde `slate-200`, ícono `EyeOff`, texto `slate-500` |
+| Activo | Pill azul `bg-blue-50 text-blue-600 border-blue-200` (dark: `bg-blue-600/20 text-blue-400`), ícono `Eye` |
+
+### Comportamiento al activar
+
+1. **Panel de posiciones** (272px) aparece entre el panel de cámaras y el mapa, con la misma card del módulo de captura: header "POSICIONES n", lista de posiciones con timestamp + dirección + coords, ítem "Última" resaltado en azul, click copia coords, scroll hint animado.
+2. **Recorrido en el mapa**: polyline punteada azul conectando el historial de posiciones + marcador "A" en el origen (mismos estilos que VehicleCaptureView). El mapa hace `fitBounds` al recorrido completo una sola vez al activar.
+3. **Seguimiento en vivo pausado**: mientras el panel está abierto, el mapa no sigue al vehículo (`VehicleFollower` inactivo) para que el usuario pueda inspeccionar el recorrido. Al desactivar, el seguimiento se reanuda.
+
+### Definición de "Posiciones"
+
+**Una posición es un punto tomado por el dispositivo GPS cada X cantidad de segundos** (frecuencia de reporte del dispositivo; en el mock, 30 s). La lista de posiciones es, por tanto, el historial de reportes GPS del recorrido, ordenado del más reciente al más antiguo.
+
+**Click en una posición → navegación precisa en el mapa**: al hacer click en un ítem de la lista, el mapa hace `flyTo` exactamente a ese punto (zoom mínimo 17 para precisión) y lo marca con un dot azul con anillo pulsante. El ítem se resalta en azul con un ring. Click de nuevo lo deselecciona (el marcador desaparece). Al cerrar el panel la selección se limpia.
+
+El click de la card selecciona/navega; copiar coordenadas es una acción independiente que solo se dispara sobre las coordenadas (con `stopPropagation`).
+
+### Datos del recorrido
+
+Historial sintético (mock) de 20 puntos hacia atrás desde la posición actual, con intervalo de 30 s. Para vehículos animados (VehicleContext), cada movimiento real agrega un punto nuevo al recorrido en vivo. En producción, este historial vendrá del backend de posiciones GPS.
+
+### Botón "Eventos" (Sesión 31b)
+
+Junto a "Posiciones" hay un segundo toggle **"Eventos"** con el mismo estilo pill Eye/EyeOff. Los dos paneles son **excluyentes**: abrir uno cierra el otro (solo hay espacio para un panel lateral entre las cámaras y el mapa).
+
+Comportamiento al activar:
+
+1. **Panel "Eventos del recorrido"** (272px): mismo estándar que "Eventos del viaje" de la vista de viajes — filtros "Todos" / "Filtrar" (dropdown multi-selección con checkbox y contador por tipo), lista de eventos con dirección, hora e ícono + métrica coloreados por tipo (Exceso de velocidad rojo, Frenado ámbar, Aceleración naranja, Giro violeta), botón X de cierre.
+2. **Mapa**: el recorrido punteado + marcador "A" se muestran igual que con Posiciones, y encima aparecen los **marcadores de evento** sobre los puntos del recorrido. Filtrar por tipo atenúa los demás marcadores. Click en un evento (lista o mapa) lo selecciona: la card se resalta en azul, el marcador crece con anillo pulsante y el mapa hace `flyTo` al punto. Click de nuevo lo deselecciona.
+
+Datos: eventos mock (5–8 por unidad, seed por `vehicle.id`) anclados a puntos del recorrido inicial, con hora coherente con el historial de posiciones. En producción vendrán del backend de telemetría.
+
+---
+
 *Fin del documento definicion.md*

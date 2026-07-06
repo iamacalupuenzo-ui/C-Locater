@@ -458,8 +458,8 @@ export function VehicleCaptureView({ vehicle, onBack, isDark = false }: VehicleC
         <div ref={posListRef} onScroll={posCheckScroll} className="absolute inset-0 overflow-y-auto px-3 py-2 [&::-webkit-scrollbar]:hidden" style={{ scrollbarWidth: 'none' }}>
           <div className="flex flex-col gap-1.5 pb-6">
             {positionHistory.map((item, idx) => (
-              <button key={idx} onClick={() => copyText(item.coords, `pos-${idx}`)} className={cn(
-                'w-full text-left flex flex-col gap-0.5 px-3 py-2.5 rounded-lg transition-colors border group',
+              <div key={idx} className={cn(
+                'w-full text-left flex flex-col gap-0.5 px-3 py-2.5 rounded-lg transition-colors border',
                 item.isLast
                   ? (isDark ? 'bg-blue-900/20 border-blue-500/50' : 'bg-blue-50/70 border-blue-400/80')
                   : (isDark ? 'bg-zinc-800/60 border-transparent hover:border-zinc-700' : 'bg-white border-transparent hover:border-slate-200'),
@@ -470,14 +470,19 @@ export function VehicleCaptureView({ vehicle, onBack, isDark = false }: VehicleC
                   {item.isLast && <span className="text-[10px] font-semibold text-blue-500 shrink-0">Última</span>}
                 </div>
                 <span className={cn('text-[11px] font-normal line-clamp-2', item.isLast ? 'text-blue-500' : (isDark ? 'text-zinc-200' : 'text-slate-700'))}>{item.address}</span>
-                <div className="flex items-center gap-1.5">
-                  <span className={cn('text-[10px] font-medium truncate', isDark ? 'text-zinc-500' : 'text-slate-400')}>{item.coords}</span>
-                  <Copy className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" strokeWidth={1.5} />
+                <div className="relative flex items-center gap-1.5">
+                  <button
+                    onClick={() => copyText(item.coords, `pos-${idx}`)}
+                    className={cn('group flex items-center gap-1 min-w-0 text-left text-[10px] font-medium transition-colors hover:underline', isDark ? 'text-zinc-500 hover:text-blue-400' : 'text-slate-400 hover:text-brand')}
+                  >
+                    <span className="truncate">{item.coords}</span>
+                    <Copy className="w-2.5 h-2.5 shrink-0 opacity-0 group-hover:opacity-60 transition-opacity" strokeWidth={1.5} />
+                  </button>
                   {copiedKey === `pos-${idx}` && (
-                    <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded-sm whitespace-nowrap shrink-0', isDark ? 'bg-zinc-700 text-zinc-300' : 'bg-slate-800 text-white')}>Copiado ✓</span>
+                    <span className={cn('absolute -top-7 left-0 text-[10px] font-medium px-2 py-1 rounded-md whitespace-nowrap shadow-lg z-50', isDark ? 'bg-zinc-700 text-zinc-200' : 'bg-slate-800 text-white')}>Copiado ✓</span>
                   )}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         </div>
