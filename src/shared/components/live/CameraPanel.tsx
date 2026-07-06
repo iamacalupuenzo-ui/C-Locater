@@ -203,7 +203,7 @@ export function CameraPanel({
   };
 
   const primary     = cameras.find(c => c.id === primaryId) ?? cameras[0];
-  const thumbnails  = cameras.filter(c => c.id !== primaryId);
+  const thumbnails  = cameras.filter(c => c.id !== primary?.id);
   const onlineCount = cameras.filter(c => c.isOnline).length;
 
   if (collapsed) {
@@ -311,18 +311,27 @@ export function CameraPanel({
       {/* main+thumbs: principal grande + thumbnails en fila inferior */}
       {layout === 'main+thumbs' && (
         <>
-          <div className="flex-1 min-h-0 p-2">
-            {primary
-              ? <CameraView camera={primary} className="w-full h-full" isDark={isDark} shareRoomId={shareRooms[primary.id]} vehiclePlate={vehiclePlate} onShareCopy={handleShareCopy} copied={copiedId === primary.id} />
-              : <div className={cn('flex items-center justify-center h-full text-[12px]', isDark ? 'text-zinc-600' : 'text-slate-400')}>Sin cámaras disponibles</div>
-            }
-          </div>
-          {thumbnails.length > 0 && (
-            <div className="flex gap-2 px-2 pb-2 shrink-0">
-              {thumbnails.map(cam => (
-                <CameraThumb key={cam.id} camera={cam} isPrimary={false} isDark={isDark} onClick={() => setPrimaryId(cam.id)} />
-              ))}
+          {!primary ? (
+            <div className="flex-1 min-h-0 p-2">
+              <div className={cn('flex items-center justify-center h-full text-[12px]', isDark ? 'text-zinc-600' : 'text-slate-400')}>Sin cámaras disponibles</div>
             </div>
+          ) : (
+            <>
+              {/* Principal: siempre grande y arriba, sin importar cuántas secundarias haya */}
+              <div className="flex-1 min-h-0 p-2">
+                <CameraView camera={primary} className="w-full h-full" isDark={isDark} shareRoomId={shareRooms[primary.id]} vehiclePlate={vehiclePlate} onShareCopy={handleShareCopy} copied={copiedId === primary.id} />
+              </div>
+              {thumbnails.length > 0 && (
+                // Ancho máximo por thumbnail (minmax) para que nunca ocupen todo el espacio
+                // disponible: con pocas secundarias quedan celdas de tamaño acotado en vez
+                // de estirarse a columnas gigantes; con muchas, se envuelven en más filas.
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,180px))] gap-2 px-2 pb-2 shrink-0 justify-center">
+                  {thumbnails.map(cam => (
+                    <CameraThumb key={cam.id} camera={cam} isPrimary={false} isDark={isDark} onClick={() => setPrimaryId(cam.id)} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
