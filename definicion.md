@@ -5,7 +5,7 @@
 
 ---
 
-## 1. Perfiles de la Aplicación
+## 1. Perfiles de la Aplicación 2ddadadadadad
 
 La app tiene **2 perfiles** que determinan el layout y el tipo de herramienta:
 
