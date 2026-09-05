@@ -327,7 +327,16 @@ export function CameraPanel({
                 // de estirarse a columnas gigantes; con muchas, se envuelven en más filas.
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(140px,180px))] gap-2 px-2 pb-2 shrink-0 justify-center">
                   {thumbnails.map(cam => (
-                    <CameraThumb key={cam.id} camera={cam} isPrimary={false} isDark={isDark} onClick={() => setPrimaryId(cam.id)} />
+                    <CameraThumb
+                      key={cam.id}
+                      camera={cam}
+                      isPrimary={false}
+                      isDark={isDark}
+                      onClick={() => setPrimaryId(cam.id)}
+                      shareRoomId={shareRooms[cam.id]}
+                      onShareCopy={handleShareCopy}
+                      copied={copiedId === cam.id}
+                    />
                   ))}
                 </div>
               )}

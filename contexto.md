@@ -1060,6 +1060,30 @@ Dos componentes visibles únicamente cuando `userRole === 'developer'`. Se acced
 
 ---
 
+## 20. Compartir cámara por enlace (P2P)
+
+Permite habilitar cualquier slot de cámara de una unidad desde otro dispositivo (celular/laptop) vía enlace. La señal viaja P2P con PeerJS (WebRTC).
+
+**Archivos:**
+- `src/shared/lib/cameraShare.ts` — `generateRoomId()`, `buildShareUrl(roomId, plate, label)` (query params `cam-share`, `vehicle`, `label`), `getShareParams()`, `clearShareParams()`
+- `src/shared/components/live/SharedCameraFeed.tsx` — receptor: registra peer `clocater-cam-<roomId>` y muestra el stream entrante (estados `waiting | active | disconnected`)
+- `src/shared/components/live/CameraShareJoin.tsx` — emisor: modal que pide permiso de cámara (`getUserMedia`) y llama al peer receptor
+- `src/shared/components/live/CameraSharePage.tsx` — página standalone del enlace: fondo en blanco con logo (`logo2.png`) + modal `CameraShareJoin`; al cerrar/detener muestra "Transmisión finalizada"
+- `src/main.tsx` — si `getShareParams()` devuelve algo, monta `CameraSharePage` en lugar de `<App />` (la plataforma completa nunca se carga para quien abre el enlace)
+
+**Flujo:**
+1. En `CameraPanel`, cada cámara (principal **y** miniaturas) muestra al hover un botón "Compartir" / ícono link → copia la URL y crea la sala (`shareRooms: Record<cameraId, roomId>`)
+2. El slot pasa a mostrar `SharedCameraFeed` con badge `REMOTA`
+3. Quien abre el enlace ve solo `CameraSharePage` (logo + modal) y activa su cámara
+
+**Compartir en cámaras individuales (miniaturas):**
+- `CameraThumb` acepta props opcionales `shareRoomId`, `onShareCopy`, `copied`
+- Botón compacto (ícono link 3×3, w-5 h-5) en esquina superior derecha, visible al hover; check verde al copiar
+- El contenedor de `CameraThumb` es `div[role="button"]` (no `<button>`) para poder anidar el botón de compartir
+- Con `shareRoomId` activo, la miniatura renderiza `SharedCameraFeed` + badge `REMOTA` y oculta el botón de compartir
+
+---
+
 ### `HistorialModule.tsx`
 
 **Propósito:** Changelog navegable de todas las sesiones de desarrollo, con filtro por componente.

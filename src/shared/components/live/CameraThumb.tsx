@@ -1,24 +1,31 @@
-import { VideoOff, Webcam } from 'lucide-react';
+import { VideoOff, Webcam, Link, Check } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import type { Camera } from '../../lib/cameraData';
 import { getCameraScene } from './cameraScenes';
 import { WebcamFeed } from './WebcamFeed';
+import { SharedCameraFeed } from './SharedCameraFeed';
 
 interface CameraThumbProps {
   camera: Camera;
   isPrimary: boolean;
   isDark?: boolean;
   onClick: () => void;
+  shareRoomId?: string;
+  onShareCopy?: (cameraId: string) => void;
+  copied?: boolean;
 }
 
-export function CameraThumb({ camera, isPrimary, isDark = false, onClick }: CameraThumbProps) {
+export function CameraThumb({ camera, isPrimary, isDark = false, onClick, shareRoomId, onShareCopy, copied = false }: CameraThumbProps) {
   const scene = getCameraScene(camera.position);
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
       className={cn(
-        'relative flex-1 min-w-0 rounded-lg overflow-hidden border-2 transition-all',
+        'relative flex-1 min-w-0 rounded-lg overflow-hidden border-2 transition-all cursor-pointer group',
         isPrimary
           ? 'border-brand shadow-[0_0_0_2px_rgba(0,82,204,0.2)]'
           : isDark
@@ -28,7 +35,9 @@ export function CameraThumb({ camera, isPrimary, isDark = false, onClick }: Came
       )}
       style={{ aspectRatio: '16/9' }}
     >
-      {camera.isOnline ? (
+      {shareRoomId ? (
+        <SharedCameraFeed roomId={shareRoomId} className="absolute inset-0 w-full h-full" />
+      ) : camera.isOnline ? (
         <>
           {camera.source === 'webcam' ? (
             <WebcamFeed className="absolute inset-0 w-full h-full" />
@@ -62,7 +71,7 @@ export function CameraThumb({ camera, isPrimary, isDark = false, onClick }: Came
 
       {/* Label */}
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-1.5 py-1 flex items-center gap-1">
-        {camera.source === 'webcam' && <Webcam className="w-2.5 h-2.5 text-white/70" strokeWidth={2} />}
+        {camera.source === 'webcam' && !shareRoomId && <Webcam className="w-2.5 h-2.5 text-white/70" strokeWidth={2} />}
         <span className="text-[9px] font-semibold text-white leading-none">{camera.label}</span>
       </div>
 
@@ -71,6 +80,34 @@ export function CameraThumb({ camera, isPrimary, isDark = false, onClick }: Came
           PRINCIPAL
         </div>
       )}
-    </button>
+
+      {/* Botón copiar URL — visible al hover */}
+      {!isPrimary && onShareCopy && !shareRoomId && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onShareCopy(camera.id); }}
+          title="Copiar URL para compartir cámara"
+          className={cn(
+            'absolute top-1 right-1 flex items-center justify-center w-5 h-5 rounded-md transition-all',
+            'bg-black/60 backdrop-blur-sm border border-white/10',
+            copied
+              ? 'text-emerald-400 opacity-100'
+              : 'text-white/80 opacity-0 group-hover:opacity-100',
+          )}
+        >
+          {copied
+            ? <Check className="w-3 h-3" strokeWidth={2.5} />
+            : <Link className="w-3 h-3" strokeWidth={2} />
+          }
+        </button>
+      )}
+
+      {/* Indicador de sala activa (esperando conexión remota) */}
+      {shareRoomId && (
+        <div className="absolute top-1 right-1 flex items-center gap-1 px-1.5 py-0.5 rounded bg-brand/80 backdrop-blur-sm">
+          <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
+          <span className="text-[8px] font-bold text-white leading-none">REMOTA</span>
+        </div>
+      )}
+    </div>
   );
 }

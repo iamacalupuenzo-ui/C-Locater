@@ -15,9 +15,6 @@ import { VehicleCaptureView, VehicleTripView } from './shared/components/vehicle
 import { LiveTrackingView } from './shared/components/LiveTrackingView';
 import { LiveVehicleList } from './shared/components/LiveVehicleList';
 import { AlertOverlay } from './shared/components/AlertOverlay';
-import { CameraShareJoin } from './shared/components/live/CameraShareJoin';
-import { getShareParams } from './shared/lib/cameraShare';
-import type { ShareParams } from './shared/lib/cameraShare';
 import { StatCard } from './shared/components/fleet/StatCard';
 import type { Vehicle } from './shared/lib/data';
 import type { UserRole } from './shared/lib/utils';
@@ -45,7 +42,6 @@ export default function App() {
   const [monitorVehicles, setMonitorVehicles] = useState<Vehicle[]>([]);
   const [activeMonitorId, setActiveMonitorId] = useState<string | null>(null);
   const [alerts, setAlerts] = useState<Alert[]>(INITIAL_ALERTS);
-  const [shareParams, setShareParams] = useState<ShareParams | null>(() => getShareParams());
   const [pendingCaptureVehicle, setPendingCaptureVehicle] = useState<Vehicle | null>(null);
   const [mapMoving, setMapMoving] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
@@ -418,10 +414,6 @@ export default function App() {
             )}
           </div>
         </div>
-
-        {shareParams && (
-          <CameraShareJoin params={shareParams} onClose={() => setShareParams(null)} />
-        )}
 
         <AlertOverlay
           alerts={alerts}
